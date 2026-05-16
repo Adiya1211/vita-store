@@ -65,48 +65,50 @@ export async function GET() {
     p.barcode ? p.barcode : `${p.brand}||${p.name}||${p.dosage ?? ""}`;
 
   type ProductItem = typeof products[number];
+  type SaleItem = typeof sales[number];
+
   const uniqueKeys = new Set(products.map(groupKey));
   const pendingKeys = new Set(products.filter((p: ProductItem) => p.status === "PENDING").map(groupKey));
   const approvedKeys = new Set(products.filter((p: ProductItem) => p.status === "APPROVED").map(groupKey));
 
   const totalProducts = uniqueKeys.size;
-  const totalQuantity = products.reduce((sum, p) => sum + p.quantity, 0);
+  const totalQuantity = products.reduce((sum: number, p: ProductItem) => sum + p.quantity, 0);
   const pendingCount = pendingKeys.size;
   const approvedCount = approvedKeys.size;
 
   // Нийт өртөг = хямдарсан үнэ × тоо (A$)
-  const totalValue = products.reduce((sum, p) => {
+  const totalValue = products.reduce((sum: number, p: ProductItem) => {
     const costAUD = p.discountedPrice ?? p.costPrice;
     return sum + costAUD * p.quantity;
   }, 0);
   // Нийт ашиг = (зарах үнэ ₮ − хямдарсан үнэ A$ × ханш) × тоо
-  const totalProfit = products.reduce((sum, p) => {
+  const totalProfit = products.reduce((sum: number, p: ProductItem) => {
     const effectiveCostAUD = p.discountedPrice ?? p.costPrice;
     return sum + (p.sellingPrice - effectiveCostAUD * audToMnt) * p.quantity;
   }, 0);
 
   // Нийт борлуулалтын статистик
   const totalSalesCount = sales.length;
-  const totalRevenue = sales.reduce((s, sale) => s + sale.totalAmount, 0);
-  const totalBonus = sales.reduce((s, sale) => s + (sale.bonus ?? 0), 0);
-  const creditSales = sales.filter((s) => s.paymentType === "CREDIT");
+  const totalRevenue = sales.reduce((s: number, sale: SaleItem) => s + sale.totalAmount, 0);
+  const totalBonus = sales.reduce((s: number, sale: SaleItem) => s + (sale.bonus ?? 0), 0);
+  const creditSales = sales.filter((s: SaleItem) => s.paymentType === "CREDIT");
   const creditCount = creditSales.length;
-  const creditAmount = creditSales.reduce((s, sale) => s + sale.totalAmount, 0);
+  const creditAmount = creditSales.reduce((s: number, sale: SaleItem) => s + sale.totalAmount, 0);
 
   // Борлуулагч тус бүрийн статистик
   const userStats = users.map((u) => {
-    const uProducts = products.filter((p) => p.assignedUserId === u.id);
-    const uValue = uProducts.reduce((sum, p) => sum + (p.discountedPrice ?? p.costPrice) * p.quantity, 0);
-    const uProfit = uProducts.reduce((sum, p) => {
+    const uProducts = products.filter((p: ProductItem) => p.assignedUserId === u.id);
+    const uValue = uProducts.reduce((sum: number, p: ProductItem) => sum + (p.discountedPrice ?? p.costPrice) * p.quantity, 0);
+    const uProfit = uProducts.reduce((sum: number, p: ProductItem) => {
       const effectiveCostAUD = p.discountedPrice ?? p.costPrice;
       return sum + (p.sellingPrice - effectiveCostAUD * audToMnt) * p.quantity;
     }, 0);
-    const uSales = sales.filter((s) => s.soldById === u.id);
-    const uRevenue = uSales.reduce((sum, s) => sum + s.totalAmount, 0);
-    const uBonus = uSales.reduce((sum, s) => sum + (s.bonus ?? 0), 0);
-    const uQuantity = uProducts.reduce((sum, p) => sum + p.quantity, 0);
-    const uPending = uProducts.filter(p => p.status === "PENDING").reduce((sum, p) => sum + p.quantity, 0);
-    const uApproved = uProducts.filter(p => p.status === "APPROVED").reduce((sum, p) => sum + p.quantity, 0);
+    const uSales = sales.filter((s: SaleItem) => s.soldById === u.id);
+    const uRevenue = uSales.reduce((sum: number, s: SaleItem) => sum + s.totalAmount, 0);
+    const uBonus = uSales.reduce((sum: number, s: SaleItem) => sum + (s.bonus ?? 0), 0);
+    const uQuantity = uProducts.reduce((sum: number, p: ProductItem) => sum + p.quantity, 0);
+    const uPending = uProducts.filter((p: ProductItem) => p.status === "PENDING").reduce((sum: number, p: ProductItem) => sum + p.quantity, 0);
+    const uApproved = uProducts.filter((p: ProductItem) => p.status === "APPROVED").reduce((sum: number, p: ProductItem) => sum + p.quantity, 0);
     return {
       id: u.id,
       name: u.name,
