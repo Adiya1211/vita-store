@@ -1,0 +1,203 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String                   // Компанийн нэр
+  slug      String   @unique         // URL-д хэрэглэх богино нэр (vitastore, abc-company...)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  users     User[]
+}
+
+model User {
+  id             String    @id @default(cuid())
+  name           String
+  email          String    @unique
+  password       String
+  role           Role      @default(STAFF)
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+
+  // Компанийн холбоос — одоогоор optional (хуучин дата алдагдахгүй)
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  organizationId String?
+
+  products      Product[]
+  notifications Notification[]
+  sales         Sale[]
+  payments      Payment[]
+}
+
+enum Role {
+  ADMIN
+  STAFF
+}
+
+enum ProductStatus {
+  PENDING
+  APPROVED
+}
+
+model Product {
+  id              String        @id @default(cuid())
+  sequenceNumber  Int           @default(autoincrement())
+  status          ProductStatus @default(PENDING)
+  registeredAt    DateTime @default(now())
+  store           String?
+  brand           String
+  name            String
+  dosage          String?
+  quantity        Int      @default(1)
+  costPrice       Float
+  discountedPrice Float?
+  totalPrice      Float
+  sellingPrice    Float
+  barcode         String?
+  imageUrl        String?
+  colesUrl        String?
+  extraData       Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  assignedTo      User?     @relation(fields: [assignedUserId], references: [id])
+  assignedUserId  String?
+  shipment        Shipment? @relation(fields: [shipmentId], references: [id])
+  shipmentId      String?
+  sales           Sale[]
+}
+
+model FieldConfig {
+  id             String    @id @default(cuid())
+  fieldKey       String    @unique
+  label          String
+  fieldType      FieldType
+  isVisible      Boolean   @default(true)
+  isRequired     Boolean   @default(false)
+  visibleToStaff Boolean   @default(true)
+  sortOrder      Int       @default(0)
+  isCustom       Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+}
+
+enum FieldType {
+  TEXT
+  NUMBER
+  DATE
+  IMAGE
+  SELECT
+  USER_SELECT
+}
+
+model DropdownOption {
+  id        String   @id @default(cuid())
+  category  String   // "brand" | "store"
+  value     String
+  createdAt DateTime @default(now())
+
+  @@unique([category, value])
+}
+
+model Shipment {
+  id          String    @id @default(cuid())
+  name        String
+  sentAt      DateTime
+  note        String?
+  shippingFee Float?
+  createdAt   DateTime  @default(now())
+  products    Product[]
+}
+
+enum PaymentType {
+  PAID
+  CREDIT
+}
+
+model Sale {
+  id              String      @id @default(cuid())
+  product         Product     @relation(fields: [productId], references: [id])
+  productId       String
+  soldBy          User        @relation(fields: [soldById], references: [id])
+  soldById        String
+  quantity        Int
+  sellingPrice    Float
+  actualPrice     Float
+  totalAmount     Float
+  bonus           Float?
+  paymentType     PaymentType @default(PAID)
+  note            String?
+  customerName    String?
+  soldAt          DateTime    @default(now())
+  createdAt       DateTime    @default(now())
+}
+
+model ActivityLog {
+  id          String   @id @default(cuid())
+  action      String
+  description String
+  userId      String
+  userName    String
+  productId   String?
+  productName String?
+  createdAt   DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  body      String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  fromUser      User          @relation(fields: [fromUserId], references: [id])
+  fromUserId    String
+  amount        Float
+  note          String?
+  paidAt        DateTime      @default(now())
+  createdAt     DateTime      @default(now())
+  status        PaymentStatus @default(PENDING)
+  rejectionNote String?
+}
+
+model ProductBrochure {
+  id          String   @id @default(cuid())
+  productKey  String   @unique  // brand||name||dosage — нэг бүтээгдэхүүнд нэг
+  brand       String
+  name        String
+  dosage      String?
+  benefits    Json     // string[]
+  usage       String
+  description String
+  createdAt   DateTime @default(now())
+}
+
+model BarcodeCache {
+  id        String   @id @default(cuid())
+  barcode   String   @unique
+  name      String?
+  brand     String?
+  dosage    String?
+  imageUrl  String?
+  costPrice Float?
+  colesUrl  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

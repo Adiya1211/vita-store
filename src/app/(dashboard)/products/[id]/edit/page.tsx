@@ -1,0 +1,419 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter, useParams } from "next/navigation";
+import { toast } from "sonner";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ArrowLeft, RefreshCw } from "lucide-react";
+import Link from "next/link";
+import DynamicSelect from "@/components/DynamicSelect";
+import MultiImageInput from "@/components/MultiImageInput";
+
+interface FieldConfig {
+  id: string;
+  fieldKey: string;
+  label: string;
+  fieldType: string;
+  isVisible: boolean;
+  isRequired: boolean;
+  sortOrder: number;
+  isCustom: boolean;
+}
+
+interface User {
+  id: string;
+  name: string;
+}
+
+const BASE_FIELD_META: Record<string, { type: string; placeholder?: string }> = {
+  registeredAt: { type: "date" },
+  store: { type: "text", placeholder: "Жишээ: Coles" },
+  brand: { type: "text", placeholder: "Брэндийн нэр" },
+  name: { type: "text", placeholder: "Витаминын нэр" },
+  dosage: { type: "text", placeholder: "500mg, 60 capsules..." },
+  quantity: { type: "number", placeholder: "0" },
+  costPrice: { type: "number", placeholder: "0.00" },
+  discountedPrice: { type: "number", placeholder: "0.00" },
+  totalPrice: { type: "number", placeholder: "0.00" },
+  sellingPrice: { type: "number", placeholder: "0" },
+  profit: { type: "number", placeholder: "" },
+  assignedUserId: { type: "user_select" },
+  barcode: { type: "text", placeholder: "Barcode" },
+  imageUrl: { type: "text", placeholder: "https://..." },
+};
+
+// Зарах үнэ = (хямдарсан үнэ × 2 + 15) × ханш
+// Ашиг    = зарах үнэ − хямдарсан үнэ × ханш
+function recalculate(
+  data: Record<string, string>,
+  rate: number,
+  trigger?: string
+): Record<string, string> {
+  const next = { ...data };
+  const costPrice = Number(next.costPrice) || 0;
+  const qty = Number(next.quantity) || 1;
+
+  // costPrice оруулахад хямдарсан үнэ автомат = costPrice / 2 (хоосон байвал)
+  if (trigger === "costPrice" && costPrice && !next.discountedPrice) {
+    next.discountedPrice = (costPrice / 2).toFixed(2);
+  }
+
+  const discountedPrice = next.discountedPrice ? Number(next.discountedPrice) : null;
+
+  // Нийт үнэ = costPrice × тоо ширхэг (A$)
+  next.totalPrice = (costPrice * qty).toFixed(2);
+
+  // Зарах үнэ автомат (sellingPrice өөрөө өөрчлөгдсөн бол дахин бодохгүй)
+  if (trigger !== "sellingPrice" && rate > 0) {
+    const dp = discountedPrice ?? (costPrice > 0 ? costPrice / 2 : 0);
+    if (dp > 0) {
+      next.sellingPrice = Math.round((dp * 2 + 15) * rate).toString();
+    }
+  }
+
+  // Ашиг = зарах үнэ − хямдарсан үнэ × ханш (нэгж)
+  const sp = Number(next.sellingPrice) || 0;
+  const effectiveCostAUD = discountedPrice ?? costPrice;
+  if (rate > 0 && effectiveCostAUD > 0) {
+    next.profit = Math.round(sp - effectiveCostAUD * rate).toString();
+  }
+
+  return next;
+}
+
+export default function EditProductPage() {
+  const router = useRouter();
+  const params = useParams<{ id: string }>();
+  const [fields, setFields] = useState<FieldConfig[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [form, setForm] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [exchangeRate, setExchangeRate] = useState<number>(0);
+  const [rateDate, setRateDate] = useState<string | null>(null);
+
+  // Ханш татах
+  useEffect(() => {
+    fetch("/api/exchange-rate")
+      .then((r) => r.json())
+      .then((d) => {
+        setExchangeRate(d.rate);
+        setRateDate(d.date);
+      });
+  }, []);
+
+  // Ханш ирэхэд зарах үнэ, ашгийг дахин бодох
+  useEffect(() => {
+    if (exchangeRate > 0 && !loading) {
+      setForm((prev) => recalculate(prev, exchangeRate));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exchangeRate]);
+
+  useEffect(() => {
+    Promise.all([
+      fetch(`/api/products/${params.id}`).then((r) => r.json()),
+      fetch("/api/fields").then((r) => r.json()),
+      fetch("/api/users").then((r) => r.json()),
+    ]).then(([product, fieldList, userList]) => {
+      setFields(fieldList);
+      setUsers(userList);
+      if (product.extraData?.imageUrls?.length > 0) {
+        setImageUrls(product.extraData.imageUrls);
+      } else if (product.imageUrl) {
+        setImageUrls([product.imageUrl]);
+      }
+      setForm({
+        registeredAt: product.registeredAt
+          ? new Date(product.registeredAt).toISOString().split("T")[0]
+          : new Date().toISOString().split("T")[0],
+        store: product.store ?? "",
+        brand: product.brand ?? "",
+        name: product.name ?? "",
+        dosage: product.dosage ?? "",
+        quantity: String(product.quantity ?? 1),
+        costPrice: product.costPrice != null ? String(product.costPrice) : "",
+        discountedPrice: product.discountedPrice != null ? String(product.discountedPrice) : "",
+        totalPrice: product.totalPrice != null ? String(product.totalPrice) : "",
+        sellingPrice: product.sellingPrice != null ? String(product.sellingPrice) : "",
+        barcode: product.barcode ?? "",
+        imageUrl: product.imageUrl ?? "",
+        assignedUserId: product.assignedUserId ?? "",
+        ...(product.extraData || {}),
+      });
+      setLoading(false);
+    });
+  }, [params.id]);
+
+  // Талбарыг зөв дарааллаар гаргах — discountedPrice нь costPrice-аас өмнө
+  const visibleFields = (() => {
+    const sorted = fields
+      .filter((f) => f.isVisible && f.fieldKey !== "barcode")
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+
+    const dpIdx = sorted.findIndex((f) => f.fieldKey === "discountedPrice");
+    const cpIdx = sorted.findIndex((f) => f.fieldKey === "costPrice");
+    if (dpIdx !== -1 && cpIdx !== -1 && cpIdx < dpIdx) {
+      [sorted[dpIdx], sorted[cpIdx]] = [sorted[cpIdx], sorted[dpIdx]];
+    }
+    return sorted;
+  })();
+
+  function resolveImageUrl(url: string): string {
+    const match = url.match(/coles\.com\.au\/product\/[^?#]+-(\d+)/);
+    if (match) {
+      const id = match[1];
+      return `https://cdn.productimages.coles.com.au/productimages/${id[0]}/${id}.jpg`;
+    }
+    return url;
+  }
+
+  function handleChange(key: string, value: string) {
+    const resolved = key === "imageUrl" ? resolveImageUrl(value) : value;
+    setForm((prev) => recalculate({ ...prev, [key]: resolved }, exchangeRate, key));
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+
+    const extraData: Record<string, unknown> = {};
+    visibleFields.forEach((f) => {
+      if (f.isCustom && form[f.fieldKey]) {
+        extraData[f.fieldKey] = form[f.fieldKey];
+      }
+    });
+    if (imageUrls.length > 0) extraData.imageUrls = imageUrls;
+
+    const assignedUserId =
+      form.assignedUserId && form.assignedUserId !== "none"
+        ? form.assignedUserId
+        : null;
+
+    const res = await fetch("/api/products", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: params.id,
+        ...form,
+        assignedUserId,
+        extraData: Object.keys(extraData).length ? extraData : null,
+      }),
+    });
+
+    setSaving(false);
+    if (res.ok) {
+      toast.success("Өөрчлөлт хадгалагдлаа");
+      router.push("/products");
+    } else {
+      setError("Хадгалахад алдаа гарлаа. Дахин оролдоно уу.");
+      toast.error("Хадгалахад алдаа гарлаа");
+    }
+  }
+
+  function renderField(f: FieldConfig) {
+    const meta = BASE_FIELD_META[f.fieldKey];
+    const type = meta?.type || f.fieldType.toLowerCase();
+    const placeholder = meta?.placeholder || "";
+    const value: string = form[f.fieldKey] ?? "";
+
+    if (f.fieldKey === "imageUrl") {
+      return (
+        <div key={f.id} className="col-span-2 space-y-1">
+          <Label>{f.label}</Label>
+          <MultiImageInput
+            urls={imageUrls}
+            onChange={(urls) => {
+              setImageUrls(urls);
+              setForm((prev) => ({ ...prev, imageUrl: urls[0] || "" }));
+            }}
+          />
+        </div>
+      );
+    }
+
+    if (f.fieldKey === "profit") {
+      const profitVal = parseFloat(value) || 0;
+      return (
+        <div key={f.id} className="space-y-1">
+          <Label>{f.label}</Label>
+          <Input
+            value={value ? `₮${Number(value).toLocaleString("mn-MN")}` : ""}
+            readOnly
+            className={`bg-gray-50 font-medium ${profitVal >= 0 ? "text-green-700" : "text-red-600"}`}
+          />
+        </div>
+      );
+    }
+
+    // Зарах үнэ — автомат тооцоологддог ч засах боломжтой
+    if (f.fieldKey === "sellingPrice") {
+      return (
+        <div key={f.id} className="space-y-1">
+          <Label className="flex items-center gap-1.5">
+            {f.label}
+            {f.isRequired && <span className="text-red-500">*</span>}
+            <span className="text-xs text-blue-400 font-normal">(автомат)</span>
+          </Label>
+          <Input
+            type="number"
+            placeholder={placeholder}
+            value={value}
+            onChange={(e) => handleChange(f.fieldKey, e.target.value)}
+            step="any"
+            className="border-blue-200 bg-blue-50/20"
+          />
+        </div>
+      );
+    }
+
+    if (f.fieldKey === "brand" || f.fieldKey === "store") {
+      return (
+        <div key={f.id} className="space-y-1">
+          <Label className="flex items-center gap-1.5">
+            {f.label}
+            {f.isRequired && <span className="text-red-500">*</span>}
+          </Label>
+          <DynamicSelect
+            category={f.fieldKey}
+            value={value}
+            onChange={(v) => handleChange(f.fieldKey, v)}
+            placeholder={`${f.label} сонгох...`}
+            required={f.isRequired}
+          />
+        </div>
+      );
+    }
+
+    if (type === "user_select") {
+      const selectedUser = users.find((u) => u.id === value);
+      return (
+        <div key={f.id} className="space-y-1">
+          <Label>{f.label}</Label>
+          <Select value={value || ""} onValueChange={(v) => handleChange(f.fieldKey, v ?? "")}>
+            <SelectTrigger>
+              <span className={selectedUser ? "text-sm" : "text-sm text-gray-400"}>
+                {selectedUser ? selectedUser.name : "Борлуулагч сонгох"}
+              </span>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">— Сонгоогүй —</SelectItem>
+              {users.map((u) => (
+                <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      );
+    }
+
+    return (
+      <div key={f.id} className="space-y-1">
+        <Label className="flex items-center gap-1.5">
+          {f.label}
+          {f.isRequired && <span className="text-red-500">*</span>}
+        </Label>
+        <Input
+          type={type === "number" ? "number" : type === "date" ? "date" : "text"}
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => handleChange(f.fieldKey, e.target.value)}
+          required={f.isRequired}
+          step={type === "number" ? "any" : undefined}
+        />
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="max-w-3xl mx-auto">
+        <div className="flex items-center gap-3 mb-6">
+          <Link href="/products">
+            <Button variant="ghost" size="sm"><ArrowLeft size={16} /></Button>
+          </Link>
+          <h1 className="text-xl font-semibold">Засварлах</h1>
+        </div>
+        <p className="text-gray-400 text-sm">Уншиж байна...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-3xl mx-auto">
+      <div className="flex items-center gap-3 mb-6">
+        <Link href="/products">
+          <Button variant="ghost" size="sm"><ArrowLeft size={16} /></Button>
+        </Link>
+        <h1 className="text-xl font-semibold">Бүтээгдэхүүн засварлах</h1>
+
+        {/* Ханшийн мэдээлэл */}
+        <div className="ml-auto flex items-center gap-1.5 text-xs text-gray-400 bg-gray-50 border rounded-lg px-3 py-1.5">
+          <RefreshCw size={11} className={exchangeRate === 0 ? "animate-spin" : ""} />
+          {exchangeRate > 0 ? (
+            <span>1 A$ = <span className="font-semibold text-gray-700">₮{exchangeRate.toLocaleString("mn-MN")}</span>
+              {rateDate && <span className="ml-1 text-gray-300">({rateDate})</span>}
+            </span>
+          ) : (
+            <span>Ханш татаж байна...</span>
+          )}
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Barcode талбар */}
+        <Card>
+          <CardContent className="pt-5 pb-4 space-y-1">
+            <Label>Бар код</Label>
+            <Input
+              type="text"
+              placeholder="Barcode"
+              value={form.barcode ?? ""}
+              onChange={(e) => handleChange("barcode", e.target.value)}
+              className="font-mono"
+            />
+          </CardContent>
+        </Card>
+
+        {/* Томьёоны тайлбар */}
+        <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-xs text-blue-700 space-y-1">
+          <p><span className="font-semibold">Зарах үнэ</span> = (Хямдарсан үнэ × 2 + A$15) × ₮{exchangeRate > 0 ? exchangeRate.toLocaleString("mn-MN") : "..."}</p>
+          <p><span className="font-semibold">Ашиг</span> = Зарах үнэ − Хямдарсан үнэ × ₮{exchangeRate > 0 ? exchangeRate.toLocaleString("mn-MN") : "..."}</p>
+        </div>
+
+        {/* Бусад талбарууд */}
+        <Card>
+          <CardContent className="pt-5">
+            <div className="grid grid-cols-2 gap-4">
+              {visibleFields.map(renderField)}
+            </div>
+
+            {error && <p className="text-red-500 text-sm mt-4">{error}</p>}
+
+            <div className="flex justify-end gap-3 mt-6">
+              <Link href="/products">
+                <Button variant="outline" type="button">Цуцлах</Button>
+              </Link>
+              <Button type="submit" disabled={saving}>
+                {saving ? "Хадгалж байна..." : "Хадгалах"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </form>
+    </div>
+  );
+}
