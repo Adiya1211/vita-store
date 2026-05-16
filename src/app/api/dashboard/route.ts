@@ -64,9 +64,10 @@ export async function GET() {
   const groupKey = (p: { barcode: string | null; brand: string; name: string; dosage: string | null }) =>
     p.barcode ? p.barcode : `${p.brand}||${p.name}||${p.dosage ?? ""}`;
 
+  type ProductItem = typeof products[number];
   const uniqueKeys = new Set(products.map(groupKey));
-  const pendingKeys = new Set(products.filter(p => p.status === "PENDING").map(groupKey));
-  const approvedKeys = new Set(products.filter(p => p.status === "APPROVED").map(groupKey));
+  const pendingKeys = new Set(products.filter((p: ProductItem) => p.status === "PENDING").map(groupKey));
+  const approvedKeys = new Set(products.filter((p: ProductItem) => p.status === "APPROVED").map(groupKey));
 
   const totalProducts = uniqueKeys.size;
   const totalQuantity = products.reduce((sum, p) => sum + p.quantity, 0);
