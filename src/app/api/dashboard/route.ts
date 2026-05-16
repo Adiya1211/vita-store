@@ -125,7 +125,7 @@ export async function GET() {
   });
 
   // Хуваарилаагүй бараа
-  const unassigned = new Set(products.filter((p) => !p.assignedUserId).map(groupKey)).size;
+  const unassigned = new Set(products.filter((p: ProductItem) => !p.assignedUserId).map(groupKey)).size;
 
   // Сүүлийн 30 хоногийн өдөр тус бүрийн борлуулалт (chart)
   const dailySalesMap: Record<string, number> = {};
