@@ -66,6 +66,7 @@ export async function GET() {
 
   type ProductItem = typeof products[number];
   type SaleItem = typeof sales[number];
+  type UserItem = typeof users[number];
 
   const uniqueKeys = new Set(products.map(groupKey));
   const pendingKeys = new Set(products.filter((p: ProductItem) => p.status === "PENDING").map(groupKey));
@@ -96,7 +97,7 @@ export async function GET() {
   const creditAmount = creditSales.reduce((s: number, sale: SaleItem) => s + sale.totalAmount, 0);
 
   // Борлуулагч тус бүрийн статистик
-  const userStats = users.map((u) => {
+  const userStats = users.map((u: UserItem) => {
     const uProducts = products.filter((p: ProductItem) => p.assignedUserId === u.id);
     const uValue = uProducts.reduce((sum: number, p: ProductItem) => sum + (p.discountedPrice ?? p.costPrice) * p.quantity, 0);
     const uProfit = uProducts.reduce((sum: number, p: ProductItem) => {
