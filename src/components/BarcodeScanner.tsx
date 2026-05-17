@@ -32,6 +32,7 @@ export default function BarcodeScanner({ onResult, initialValue = "" }: Props) {
   const streamRef = useRef<MediaStream | null>(null);
   const detectorRef = useRef<BarcodeDetector | null>(null);
   const rafRef = useRef<number>(0);
+  const lookupRef = useRef<(code: string) => void>(() => {});
 
   async function lookupBarcode(code: string) {
     if (!code.trim()) return;
@@ -63,8 +64,12 @@ export default function BarcodeScanner({ onResult, initialValue = "" }: Props) {
     }
   }
 
+  // lookupBarcode-г ref-д хадгалж detection loop-д ашиглана
+  useEffect(() => {
+    lookupRef.current = lookupBarcode;
+  });
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    // USB barcode scanner-ууд Enter товч дардаг
     if (e.key === "Enter") {
       e.preventDefault();
       lookupBarcode(barcode);
@@ -75,57 +80,69 @@ export default function BarcodeScanner({ onResult, initialValue = "" }: Props) {
     cancelAnimationFrame(rafRef.current);
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
+    detectorRef.current = null;
     setCameraOpen(false);
   }, []);
 
+  // cameraOpen болсны дараа video render хийгдэх — тэгж байж srcObject тавина
+  useEffect(() => {
+    if (!cameraOpen || !videoRef.current || !streamRef.current || !detectorRef.current) return;
+
+    const video = videoRef.current;
+    const detector = detectorRef.current;
+
+    video.srcObject = streamRef.current;
+    video.play().catch(() => {});
+
+    const detect = async () => {
+      if (!videoRef.current || !detectorRef.current) return;
+      try {
+        const barcodes = await detector.detect(video);
+        if (barcodes.length > 0) {
+          const code = barcodes[0].rawValue;
+          setBarcode(code);
+          stopCamera();
+          lookupRef.current(code);
+          return;
+        }
+      } catch {
+        // continue scanning
+      }
+      rafRef.current = requestAnimationFrame(detect);
+    };
+
+    const onPlaying = () => {
+      rafRef.current = requestAnimationFrame(detect);
+    };
+
+    video.addEventListener("playing", onPlaying);
+    return () => {
+      video.removeEventListener("playing", onPlaying);
+    };
+  }, [cameraOpen, stopCamera]);
+
   const startCamera = useCallback(async () => {
     if (!("BarcodeDetector" in window)) {
-      alert("Таны браузер камераар barcode уншихыг дэмждэггүй. Chrome ашиглана уу.");
+      alert("Таны браузер BarcodeDetector дэмждэггүй байна.\niOS-д дэмжигдэхгүй — Android Chrome ашиглана уу.");
       return;
     }
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
       });
       streamRef.current = stream;
+
+      detectorRef.current = new BarcodeDetector({
+        formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "code_39", "qr_code"],
+      });
+
+      // cameraOpen=true болсны дараа useEffect дотор video setup хийнэ
       setCameraOpen(true);
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-      }
-
-      // BarcodeDetector API (Chrome 83+, Edge, Android)
-      const detector = new BarcodeDetector({
-        formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "code_39"],
-      });
-      detectorRef.current = detector;
-
-      const detect = async () => {
-        if (!videoRef.current || !detectorRef.current) return;
-        try {
-          const barcodes = await detectorRef.current.detect(videoRef.current);
-          if (barcodes.length > 0) {
-            const code = barcodes[0].rawValue;
-            setBarcode(code);
-            stopCamera();
-            lookupBarcode(code);
-            return;
-          }
-        } catch {
-          // continue scanning
-        }
-        rafRef.current = requestAnimationFrame(detect);
-      };
-
-      videoRef.current?.addEventListener("playing", () => {
-        rafRef.current = requestAnimationFrame(detect);
-      });
     } catch {
       alert("Камерт нэвтрэх зөвшөөрөл байхгүй байна.");
     }
-  }, [stopCamera]);
+  }, []);
 
   useEffect(() => {
     return () => stopCamera();
@@ -202,22 +219,23 @@ export default function BarcodeScanner({ onResult, initialValue = "" }: Props) {
       )}
 
       {cameraOpen && (
-        <div className="relative rounded-lg overflow-hidden border bg-black aspect-video max-h-48">
+        <div className="relative rounded-lg overflow-hidden border bg-black aspect-video max-h-64">
           <video
             ref={videoRef}
             className="w-full h-full object-cover"
             muted
             playsInline
+            autoPlay
           />
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="w-48 h-24 border-2 border-white/70 rounded-lg relative">
-              <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-green-400 rounded-tl" />
-              <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-green-400 rounded-tr" />
-              <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-green-400 rounded-bl" />
-              <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-green-400 rounded-br" />
+            <div className="w-56 h-28 border-2 border-white/70 rounded-lg relative">
+              <div className="absolute top-0 left-0 w-5 h-5 border-t-2 border-l-2 border-green-400 rounded-tl" />
+              <div className="absolute top-0 right-0 w-5 h-5 border-t-2 border-r-2 border-green-400 rounded-tr" />
+              <div className="absolute bottom-0 left-0 w-5 h-5 border-b-2 border-l-2 border-green-400 rounded-bl" />
+              <div className="absolute bottom-0 right-0 w-5 h-5 border-b-2 border-r-2 border-green-400 rounded-br" />
             </div>
           </div>
-          <p className="absolute bottom-2 left-0 right-0 text-center text-white text-xs">
+          <p className="absolute bottom-2 left-0 right-0 text-center text-white text-xs drop-shadow">
             Barcode-г хайрцаг дотор байрлуулна уу
           </p>
         </div>
