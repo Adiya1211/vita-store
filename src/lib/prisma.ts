@@ -5,13 +5,13 @@ import { PrismaClient } from "@prisma/client";
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 
 function createPrisma() {
-  // DB_PASSWORD тусад нь байвал ашиглана (& зэрэг тусгай тэмдэгтийг зөв дамжуулна)
+  // Production: pooler (IPv4) ашиглана — Vercel serverless-д тохиромжтой
   const pool = process.env.DB_PASSWORD
     ? new Pool({
-        host: "db.abesrquyigzaqqizmjrn.supabase.co",
-        port: 5432,
+        host: "aws-1-ap-northeast-1.pooler.supabase.com",
+        port: 6543,
         database: "postgres",
-        user: "postgres",
+        user: "postgres.abesrquyigzaqqizmjrn",
         password: process.env.DB_PASSWORD,
         ssl: { rejectUnauthorized: false },
         max: process.env.NODE_ENV === "production" ? 1 : 10,
