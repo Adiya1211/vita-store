@@ -32,6 +32,7 @@ export default function BarcodeScanner({ onResult, initialValue = "" }: Props) {
   const streamRef = useRef<MediaStream | null>(null);
   const detectorRef = useRef<BarcodeDetector | null>(null);
   const rafRef = useRef<number>(0);
+  const zxingRef = useRef<any>(null);
   const lookupRef = useRef<(code: string) => void>(() => {});
 
   async function lookupBarcode(code: string) {
@@ -39,18 +40,12 @@ export default function BarcodeScanner({ onResult, initialValue = "" }: Props) {
     setScanning(true);
     setStatus("loading");
     setSourceLabel("");
-
     try {
       const res = await fetch(`/api/lookup?barcode=${encodeURIComponent(code.trim())}`);
       const data: LookupResult = await res.json();
-
       if (data.found) {
         setStatus("found");
-        setSourceLabel(
-          data.source === "coles" ? "Coles" :
-          data.source === "cache" ? "Кэш" :
-          "Open Food Facts"
-        );
+        setSourceLabel(data.source === "coles" ? "Coles" : data.source === "cache" ? "Кэш" : "Open Food Facts");
         onResult(code.trim(), data);
       } else {
         setStatus("notfound");
@@ -64,33 +59,33 @@ export default function BarcodeScanner({ onResult, initialValue = "" }: Props) {
     }
   }
 
-  // lookupBarcode-г ref-д хадгалж detection loop-д ашиглана
-  useEffect(() => {
-    lookupRef.current = lookupBarcode;
-  });
+  useEffect(() => { lookupRef.current = lookupBarcode; });
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      lookupBarcode(barcode);
-    }
+    if (e.key === "Enter") { e.preventDefault(); lookupBarcode(barcode); }
   }
 
   const stopCamera = useCallback(() => {
     cancelAnimationFrame(rafRef.current);
+    // ZXing stop
+    if (zxingRef.current) {
+      try { zxingRef.current.reset(); } catch { }
+      zxingRef.current = null;
+    }
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     detectorRef.current = null;
     setCameraOpen(false);
   }, []);
 
-  // cameraOpen болсны дараа video render хийгдэх — тэгж байж srcObject тавина
+  // Native BarcodeDetector setup (Android Chrome)
   useEffect(() => {
-    if (!cameraOpen || !videoRef.current || !streamRef.current || !detectorRef.current) return;
+    if (!cameraOpen || !videoRef.current || !streamRef.current) return;
+    if (detectorRef.current === null) return; // ZXing mode — skip
+    if (!("BarcodeDetector" in window)) return;
 
     const video = videoRef.current;
     const detector = detectorRef.current;
-
     video.srcObject = streamRef.current;
     video.play().catch(() => {});
 
@@ -105,27 +100,39 @@ export default function BarcodeScanner({ onResult, initialValue = "" }: Props) {
           lookupRef.current(code);
           return;
         }
-      } catch {
-        // continue scanning
-      }
+      } catch { }
       rafRef.current = requestAnimationFrame(detect);
     };
 
-    const onPlaying = () => {
-      rafRef.current = requestAnimationFrame(detect);
-    };
-
+    const onPlaying = () => { rafRef.current = requestAnimationFrame(detect); };
     video.addEventListener("playing", onPlaying);
-    return () => {
-      video.removeEventListener("playing", onPlaying);
-    };
+    return () => video.removeEventListener("playing", onPlaying);
+  }, [cameraOpen, stopCamera]);
+
+  // ZXing setup (iOS болон бусад)
+  useEffect(() => {
+    if (!cameraOpen || !videoRef.current || !streamRef.current) return;
+    if (zxingRef.current === null) return; // native mode — skip
+
+    const video = videoRef.current;
+    const reader = zxingRef.current;
+    video.srcObject = streamRef.current;
+    video.play().catch(() => {});
+
+    reader.decodeFromVideoElement(video, (result: any, err: any) => {
+      if (result) {
+        const code = result.getText();
+        setBarcode(code);
+        stopCamera();
+        lookupRef.current(code);
+      }
+    }).catch(() => {});
+
+    return () => { try { reader.reset(); } catch { } };
   }, [cameraOpen, stopCamera]);
 
   const startCamera = useCallback(async () => {
-    if (!("BarcodeDetector" in window)) {
-      alert("Таны браузер BarcodeDetector дэмждэггүй байна.\niOS-д дэмжигдэхгүй — Android Chrome ашиглана уу.");
-      return;
-    }
+    const useNative = "BarcodeDetector" in window;
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -133,20 +140,26 @@ export default function BarcodeScanner({ onResult, initialValue = "" }: Props) {
       });
       streamRef.current = stream;
 
-      detectorRef.current = new BarcodeDetector({
-        formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "code_39", "qr_code"],
-      });
+      if (useNative) {
+        // Android Chrome — native BarcodeDetector
+        detectorRef.current = new BarcodeDetector({
+          formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "code_39", "qr_code"],
+        });
+        zxingRef.current = null;
+      } else {
+        // iOS болон бусад — ZXing
+        detectorRef.current = null;
+        const { BrowserMultiFormatReader } = await import("@zxing/browser");
+        zxingRef.current = new BrowserMultiFormatReader();
+      }
 
-      // cameraOpen=true болсны дараа useEffect дотор video setup хийнэ
       setCameraOpen(true);
     } catch {
       alert("Камерт нэвтрэх зөвшөөрөл байхгүй байна.");
     }
   }, []);
 
-  useEffect(() => {
-    return () => stopCamera();
-  }, [stopCamera]);
+  useEffect(() => { return () => stopCamera(); }, [stopCamera]);
 
   const statusIcon = {
     loading: <Loader2 size={14} className="animate-spin text-blue-500" />,
@@ -172,61 +185,34 @@ export default function BarcodeScanner({ onResult, initialValue = "" }: Props) {
             type="text"
             placeholder="Barcode уншуулах эсвэл гараар бичнэ үү..."
             value={barcode}
-            onChange={(e) => {
-              setBarcode(e.target.value);
-              setStatus("idle");
-            }}
+            onChange={(e) => { setBarcode(e.target.value); setStatus("idle"); }}
             onKeyDown={handleKeyDown}
             className="pr-8 font-mono"
           />
           {statusIcon && (
-            <span className="absolute right-2.5 top-1/2 -translate-y-1/2">
-              {statusIcon}
-            </span>
+            <span className="absolute right-2.5 top-1/2 -translate-y-1/2">{statusIcon}</span>
           )}
         </div>
-
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => lookupBarcode(barcode)}
-          disabled={scanning || !barcode.trim()}
-          className="shrink-0"
-        >
+        <Button type="button" variant="outline" onClick={() => lookupBarcode(barcode)} disabled={scanning || !barcode.trim()} className="shrink-0">
           Хайх
         </Button>
-
-        <Button
-          type="button"
-          variant="outline"
-          onClick={cameraOpen ? stopCamera : startCamera}
-          className="shrink-0"
-          title="Камераар уншуулах"
-        >
+        <Button type="button" variant="outline" onClick={cameraOpen ? stopCamera : startCamera} className="shrink-0" title="Камераар уншуулах">
           {cameraOpen ? <X size={16} /> : <Camera size={16} />}
         </Button>
       </div>
 
       {statusText && (
         <p className={`text-xs flex items-center gap-1.5 ${
-          status === "found" ? "text-green-600" :
-          status === "notfound" ? "text-amber-600" :
+          status === "found" ? "text-green-600" : status === "notfound" ? "text-amber-600" :
           status === "error" ? "text-red-500" : "text-blue-500"
         }`}>
-          {statusIcon}
-          {statusText}
+          {statusIcon}{statusText}
         </p>
       )}
 
       {cameraOpen && (
         <div className="relative rounded-lg overflow-hidden border bg-black aspect-video max-h-64">
-          <video
-            ref={videoRef}
-            className="w-full h-full object-cover"
-            muted
-            playsInline
-            autoPlay
-          />
+          <video ref={videoRef} className="w-full h-full object-cover" muted playsInline autoPlay />
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="w-56 h-28 border-2 border-white/70 rounded-lg relative">
               <div className="absolute top-0 left-0 w-5 h-5 border-t-2 border-l-2 border-green-400 rounded-tl" />
