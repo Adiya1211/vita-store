@@ -47,7 +47,7 @@ export default function LoginPage() {
         </div>
         <div>
           <h1 className="text-4xl font-bold text-white leading-snug mb-4">
-            1111111Adiya
+            Витамин бүтээгдэхүүний<br />бүртгэлийн систем
           </h1>
           <p className="text-gray-400 text-base">
             Австралиас Монголруу явуулж буй бүтээгдэхүүнийг хялбархан бүртгэж, удирдана уу.
