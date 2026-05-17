@@ -1,33 +1,54 @@
 import { NextResponse } from "next/server";
 import { Pool } from "pg";
+import dns from "dns/promises";
 
-async function testConn(host: string, port: number, user: string, password: string) {
+export const runtime = "nodejs";
+
+export async function GET() {
+  const results: Record<string, string> = {};
+
+  // 1. DNS шалгах
+  try {
+    const addrs = await dns.resolve4("db.abesrquyigzaqqizmjrn.supabase.co");
+    results.dns_prod = `OK: ${addrs.join(",")}`;
+  } catch (e) { results.dns_prod = String(e); }
+
+  try {
+    const addrs = await dns.resolve4("google.com");
+    results.dns_google = `OK: ${addrs[0]}`;
+  } catch (e) { results.dns_google = String(e); }
+
+  // 2. HTTP fetch шалгах
+  try {
+    const r = await fetch("https://httpbin.org/ip", { signal: AbortSignal.timeout(5000) });
+    const data = await r.json();
+    results.http_fetch = `OK: ${JSON.stringify(data)}`;
+  } catch (e) { results.http_fetch = String(e); }
+
+  // 3. Supabase REST API (HTTP) шалгах
+  try {
+    const r = await fetch("https://abesrquyigzaqqizmjrn.supabase.co/rest/v1/", {
+      headers: { apikey: "anon" },
+      signal: AbortSignal.timeout(5000),
+    });
+    results.supabase_http = `status: ${r.status}`;
+  } catch (e) { results.supabase_http = String(e); }
+
+  // 4. pg холболт
   try {
     const pool = new Pool({
-      host, port, database: "postgres", user, password,
+      host: "db.abesrquyigzaqqizmjrn.supabase.co",
+      port: 5432,
+      database: "postgres",
+      user: "postgres",
+      password: process.env.DB_PASSWORD,
       ssl: { rejectUnauthorized: false },
       connectionTimeoutMillis: 6000,
     });
     await pool.query("SELECT 1");
     await pool.end();
-    return "OK";
-  } catch (err) {
-    return String(err);
-  }
-}
+    results.pg = "OK";
+  } catch (e) { results.pg = String(e); }
 
-export async function GET() {
-  const pw1 = process.env.DB_PASSWORD ?? "";           // VitaStore2026
-  const pw2 = "B&T_0812!!Supabase";                   // хуучин нууц үг
-
-  const results = {
-    // vita-store-production (abesrquyigzaqqizmjrn)
-    prod_direct:   await testConn("db.abesrquyigzaqqizmjrn.supabase.co",  5432, "postgres", pw1),
-    prod_pooler:   await testConn("aws-0-ap-northeast-1.pooler.supabase.com", 6543, "postgres.abesrquyigzaqqizmjrn", pw1),
-    // vitamin-store (yipquvzjesnqrrvrsghg)
-    dev_direct:    await testConn("db.yipquvzjesnqrrvrsghg.supabase.co",  5432, "postgres", pw2),
-    dev_pooler:    await testConn("aws-0-ap-south-1.pooler.supabase.com", 6543, "postgres.yipquvzjesnqrrvrsghg", pw2),
-  };
-
-  return NextResponse.json({ pw1Len: pw1.length, results });
+  return NextResponse.json(results);
 }
