@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Scan, Copy } from "lucide-react";
+import { ArrowLeft, Scan, Copy, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import DynamicSelect from "@/components/DynamicSelect";
