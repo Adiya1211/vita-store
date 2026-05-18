@@ -14,7 +14,7 @@ interface Shipment {
   id: string;
   name: string;
   sentAt: string;
-  products: { id: string }[];
+  products: { id: string; assignedTo: { id: string; name: string } | null }[];
 }
 
 interface Product {
@@ -151,7 +151,17 @@ export default function ShipmentModal({ product, users, onClose, onDone }: Props
                       <button
                         key={s.id}
                         disabled={alreadyIn}
-                        onClick={() => setSelectedShipmentId(isSelected ? null : s.id)}
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedShipmentId(null);
+                            setToUserId("");
+                          } else {
+                            setSelectedShipmentId(s.id);
+                            // Ачааны байгаа бүтээгдэхүүнүүдийн борлуулагчийг автоматаар дүүргэх
+                            const seller = s.products.find(p => p.assignedTo)?.assignedTo;
+                            if (seller) setToUserId(seller.id);
+                          }
+                        }}
                         className={`w-full flex items-center justify-between px-3 py-2.5 transition-colors text-left disabled:opacity-40 disabled:cursor-not-allowed ${
                           isSelected ? "bg-blue-50" : "hover:bg-gray-50"
                         }`}
@@ -171,6 +181,23 @@ export default function ShipmentModal({ product, users, onClose, onDone }: Props
                   })}
                 </div>
               )}
+              {/* Сонгосон ачааны борлуулагч */}
+              {selectedShipmentId && (
+                <div className="space-y-1 pt-1">
+                  <Label>Борлуулагч</Label>
+                  <select
+                    value={toUserId}
+                    onChange={e => setToUserId(e.target.value)}
+                    className="w-full border rounded-md px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-gray-300"
+                  >
+                    <option value="">— Сонгох —</option>
+                    {users.map(u => (
+                      <option key={u.id} value={u.id}>{u.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <button
                 onClick={() => setMode("create")}
                 className="w-full flex items-center justify-center gap-2 border border-dashed rounded-lg py-2 text-sm text-gray-500 hover:text-gray-700 hover:border-gray-400 transition-colors"
