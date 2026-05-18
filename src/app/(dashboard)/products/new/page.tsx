@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Scan, Copy, RefreshCw } from "lucide-react";
+import { ArrowLeft, Scan, Copy } from "lucide-react";
 import Link from "next/link";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import DynamicSelect from "@/components/DynamicSelect";
@@ -37,17 +37,6 @@ interface User {
   name: string;
 }
 
-interface LookupResult {
-  found: boolean;
-  barcode: string;
-  name: string | null;
-  brand: string | null;
-  dosage: string | null;
-  imageUrl: string | null;
-  costPrice: number | null;
-  colesUrl: string | null;
-  source: string;
-}
 
 const BASE_FIELD_META: Record<string, { type: string; placeholder?: string }> = {
   registeredAt: { type: "date" },
@@ -120,7 +109,6 @@ export default function NewProductPage() {
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [autoFilled, setAutoFilled] = useState<string[]>([]);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [isCopied, setIsCopied] = useState(false);
   const [formKey, setFormKey] = useState(0);
@@ -194,31 +182,8 @@ export default function NewProductPage() {
     setForm((prev) => recalculate({ ...prev, [key]: resolved }, exchangeRate, key));
   }
 
-  function handleBarcodeResult(scannedBarcode: string, data: LookupResult | null) {
-    const filled: string[] = ["barcode"];
-    setForm((prev) => {
-      const next: Record<string, string> = { ...prev, barcode: scannedBarcode };
-
-      if (data?.found) {
-        if (data.name)  { next.name  = data.name;  filled.push("name");  }
-        if (data.brand) { next.brand = data.brand; filled.push("brand"); }
-        if (data.dosage){ next.dosage = data.dosage; filled.push("dosage"); }
-        if (data.imageUrl) {
-          next.imageUrl = data.imageUrl;
-          filled.push("imageUrl");
-          setImageUrls([data.imageUrl]);
-        }
-        if (data.colesUrl) { next.colesUrl = data.colesUrl; }
-        if (data.costPrice !== null) {
-          next.costPrice = data.costPrice.toFixed(2);
-          filled.push("costPrice");
-        }
-        return recalculate(next, exchangeRate, "costPrice");
-      }
-
-      return next;
-    });
-    setAutoFilled(filled);
+  function handleBarcodeResult(scannedBarcode: string) {
+    setForm((prev) => ({ ...prev, barcode: scannedBarcode }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -265,15 +230,11 @@ export default function NewProductPage() {
     const type = meta?.type || f.fieldType.toLowerCase();
     const placeholder = meta?.placeholder || "";
     const value: string = form[f.fieldKey] ?? "";
-    const wasAutoFilled = autoFilled.includes(f.fieldKey);
 
     if (f.fieldKey === "imageUrl") {
       return (
         <div key={f.id} className="col-span-2 space-y-1">
-          <Label className="flex items-center gap-1.5">
-            {f.label}
-            {wasAutoFilled && <span className="text-xs text-blue-500 font-normal">(автоматаар)</span>}
-          </Label>
+          <Label>{f.label}</Label>
           <MultiImageInput
             urls={imageUrls}
             onChange={(urls) => {
@@ -326,7 +287,6 @@ export default function NewProductPage() {
           <Label className="flex items-center gap-1.5">
             {f.label}
             {f.isRequired && <span className="text-red-500">*</span>}
-            {wasAutoFilled && <span className="text-xs text-blue-500 font-normal">(автоматаар)</span>}
           </Label>
           <DynamicSelect
             category={f.fieldKey}
@@ -366,9 +326,6 @@ export default function NewProductPage() {
         <Label className="flex items-center gap-1.5">
           {f.label}
           {f.isRequired && <span className="text-red-500">*</span>}
-          {wasAutoFilled && (
-            <span className="text-xs text-blue-500 font-normal">(автоматаар)</span>
-          )}
         </Label>
         <Input
           type={type === "number" ? "number" : type === "date" ? "date" : "text"}
@@ -377,7 +334,6 @@ export default function NewProductPage() {
           onChange={(e) => handleChange(f.fieldKey, e.target.value)}
           required={f.isRequired}
           step={type === "number" ? "any" : undefined}
-          className={wasAutoFilled ? "border-blue-300 bg-blue-50/30" : undefined}
         />
       </div>
     );
@@ -420,7 +376,6 @@ export default function NewProductPage() {
               Бар код
             </Label>
             <BarcodeScanner
-              key={formKey}
               onResult={handleBarcodeResult}
               initialValue={form.barcode || ""}
             />
