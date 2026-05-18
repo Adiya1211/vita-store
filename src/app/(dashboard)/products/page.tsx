@@ -444,15 +444,23 @@ export default function ProductsPage() {
                           <ArrowLeftRight size={14} />
                         </button>
                       )}
-                      {isAdmin && (p.status ?? "PENDING") === "APPROVED" && (
-                        <button
-                          className="p-1.5 rounded-lg hover:bg-indigo-50 text-gray-300 hover:text-indigo-500 transition-colors"
-                          title="Монголруу илгээх"
-                          onClick={() => setShipProduct(p)}
-                        >
-                          <Ship size={14} />
-                        </button>
-                      )}
+                      {isAdmin && (p.status ?? "PENDING") === "APPROVED" && (() => {
+                        const alreadyAssigned = !!p.assignedTo;
+                        return (
+                          <button
+                            disabled={alreadyAssigned}
+                            className={`p-1.5 rounded-lg transition-colors ${
+                              alreadyAssigned
+                                ? "text-gray-200 cursor-not-allowed"
+                                : "hover:bg-indigo-50 text-gray-300 hover:text-indigo-500"
+                            }`}
+                            title={alreadyAssigned ? "Борлуулагчид хуваарилагдсан — илгээх боломжгүй" : "Монголруу илгээх"}
+                            onClick={() => { if (!alreadyAssigned) setShipProduct(p); }}
+                          >
+                            <Ship size={14} />
+                          </button>
+                        );
+                      })()}
                       {isAdmin && (
                         <button
                           className="p-1.5 rounded-lg hover:bg-amber-50 text-gray-300 hover:text-amber-500 transition-colors"
