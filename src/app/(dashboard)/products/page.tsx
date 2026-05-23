@@ -212,11 +212,14 @@ export default function ProductsPage() {
   const isAdmin = session?.user?.role === "ADMIN";
   const isStaff = session?.user?.role === "STAFF";
 
+  // imageUrl, sequenceNumber — staff-д үргэлж харагдана
+  const ALWAYS_VISIBLE_FOR_STAFF = ["imageUrl", "sequenceNumber"];
+
   const visibleColumns = COLUMN_FIELD_MAP.filter((col) => {
     const config = fieldConfigs.find((f) => f.fieldKey === col.fieldKey);
     if (!config) return true;
     if (!config.isVisible) return false;
-    if (isStaff && !config.visibleToStaff) return false;
+    if (isStaff && !config.visibleToStaff && !ALWAYS_VISIBLE_FOR_STAFF.includes(col.fieldKey)) return false;
     return true;
   });
 
