@@ -8,6 +8,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const shipments = await prisma.shipment.findMany({
+    where: { NOT: { name: "MOZ" } },
     orderBy: { sentAt: "desc" },
     include: {
       products: {
