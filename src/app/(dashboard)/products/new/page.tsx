@@ -274,6 +274,7 @@ export default function NewProductPage() {
             placeholder={placeholder}
             value={value}
             onChange={(e) => handleChange(f.fieldKey, e.target.value)}
+            onWheel={(e) => e.currentTarget.blur()}
             step="any"
             className="border-blue-200 bg-blue-50/20"
           />
@@ -332,6 +333,7 @@ export default function NewProductPage() {
           placeholder={placeholder}
           value={value}
           onChange={(e) => handleChange(f.fieldKey, e.target.value)}
+          onWheel={type === "number" ? (e) => e.currentTarget.blur() : undefined}
           required={f.isRequired}
           step={type === "number" ? "any" : undefined}
         />
