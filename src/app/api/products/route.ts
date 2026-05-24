@@ -8,9 +8,12 @@ export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // "MOZ" ачааны бараануудыг харуулахгүй (буруу data — устгахгүй, нуух)
+  const hiddenShipmentFilter = { NOT: { shipment: { name: "MOZ" } } };
+
   const where = session.user.role === "STAFF"
-    ? { assignedUserId: session.user.id }
-    : {};
+    ? { assignedUserId: session.user.id, ...hiddenShipmentFilter }
+    : hiddenShipmentFilter;
 
   const products = await prisma.product.findMany({
     where,
