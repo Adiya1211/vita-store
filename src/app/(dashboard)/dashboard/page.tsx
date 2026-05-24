@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import ImageGallery from "@/components/ImageGallery";
 import SaleModal from "@/components/SaleModal";
 import TransferModal from "@/components/TransferModal";
 import BrochureCard from "@/components/BrochureCard";
@@ -402,9 +403,7 @@ export default function DashboardPage() {
                       <tr key={p.id} className="hover:bg-gray-50/70 transition-colors">
                         <td className="px-4 py-3 font-mono text-sm text-gray-400 whitespace-nowrap">{idx + 1}</td>
                         <td className="px-4 py-3">
-                          {p.imageUrl
-                            ? <img src={p.imageUrl} alt={p.name} className="w-10 h-10 object-cover rounded-lg border bg-gray-50" />
-                            : <div className="w-10 h-10 rounded-lg border bg-gray-100" />}
+                          <ImageGallery imageUrl={p.imageUrl} productName={p.name} />
                         </td>
                         <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{p.brand}</td>
                         <td className="px-4 py-3 text-gray-600">
