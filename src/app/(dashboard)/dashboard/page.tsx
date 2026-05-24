@@ -387,19 +387,25 @@ export default function DashboardPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50/50 border-b">
-                    {["Брэнд", "Нэр", "Бар код", "Тоо", "Зарах үнэ", "Ачаа", "Статус", ""].map((h) => (
+                    {["#", "Зураг", "Брэнд", "Нэр", "Бар код", "Тоо", "Зарах үнэ", "Ачаа", "Статус", ""].map((h) => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {productsLoading ? (
-                    <tr><td colSpan={8} className="text-center py-10 text-gray-400">Уншиж байна...</td></tr>
+                    <tr><td colSpan={10} className="text-center py-10 text-gray-400">Уншиж байна...</td></tr>
                   ) : filtered.length === 0 ? (
-                    <tr><td colSpan={8} className="text-center py-10 text-gray-400">Бараа байхгүй</td></tr>
+                    <tr><td colSpan={10} className="text-center py-10 text-gray-400">Бараа байхгүй</td></tr>
                   ) : (
-                    filtered.map((p) => (
+                    filtered.map((p, idx) => (
                       <tr key={p.id} className="hover:bg-gray-50/70 transition-colors">
+                        <td className="px-4 py-3 font-mono text-sm text-gray-400 whitespace-nowrap">{idx + 1}</td>
+                        <td className="px-4 py-3">
+                          {p.imageUrl
+                            ? <img src={p.imageUrl} alt={p.name} className="w-10 h-10 object-cover rounded-lg border bg-gray-50" />
+                            : <div className="w-10 h-10 rounded-lg border bg-gray-100" />}
+                        </td>
                         <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{p.brand}</td>
                         <td className="px-4 py-3 text-gray-600">
                           {p.name}
