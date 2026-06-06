@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Plus, Search, Pencil, Trash2, ArrowLeftRight, CheckCircle, Ship, Copy, ShoppingCart, RefreshCw, FileText } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, ArrowLeftRight, CheckCircle, Ship, Copy, ShoppingCart, RefreshCw, FileText, Download } from "lucide-react";
 import BrochureCard from "@/components/BrochureCard";
 import { useRouter } from "next/navigation";
 import ImageGallery from "@/components/ImageGallery";
@@ -277,6 +277,14 @@ export default function ProductsPage() {
           <p className="text-sm text-gray-400 mt-0.5">{grouped.length} бүтээгдэхүүн</p>
         </div>
         <div className="flex items-center gap-2">
+          {isAdmin && (
+            <a href="/api/products/export" download>
+              <Button variant="outline" className="gap-2 h-9 text-sm">
+                <Download size={14} />
+                Excel
+              </Button>
+            </a>
+          )}
           {isAdmin && (
             <Button
               variant="outline"
