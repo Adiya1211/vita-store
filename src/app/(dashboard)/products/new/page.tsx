@@ -15,11 +15,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Scan, Copy, RefreshCw } from "lucide-react";
+import { ArrowLeft, Scan, Copy } from "lucide-react";
 import Link from "next/link";
 import BarcodeScanner from "@/components/BarcodeScanner";
 import DynamicSelect from "@/components/DynamicSelect";
 import MultiImageInput from "@/components/MultiImageInput";
+import ExchangeRateBadge from "@/components/ExchangeRateBadge";
 
 interface FieldConfig {
   id: string;
@@ -106,6 +107,7 @@ export default function NewProductPage() {
   });
   const [exchangeRate, setExchangeRate] = useState<number>(0);
   const [rateDate, setRateDate] = useState<string | null>(null);
+  const [rateSource, setRateSource] = useState<string | undefined>();
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -120,6 +122,7 @@ export default function NewProductPage() {
       .then((d) => {
         setExchangeRate(d.rate);
         setRateDate(d.date);
+        setRateSource(d.source);
       });
   }, []);
 
@@ -350,16 +353,13 @@ export default function NewProductPage() {
         <h1 className="text-xl font-semibold">Бүтээгдэхүүн бүртгэх</h1>
 
         {/* Ханшийн мэдээлэл */}
-        <div className="ml-auto flex items-center gap-1.5 text-xs text-gray-400 bg-gray-50 border rounded-lg px-3 py-1.5">
-          <RefreshCw size={11} className={exchangeRate === 0 ? "animate-spin" : ""} />
-          {exchangeRate > 0 ? (
-            <span>1 A$ = <span className="font-semibold text-gray-700">₮{exchangeRate.toLocaleString("mn-MN")}</span>
-              {rateDate && <span className="ml-1 text-gray-300">({rateDate})</span>}
-            </span>
-          ) : (
-            <span>Ханш татаж байна...</span>
-          )}
-        </div>
+        <ExchangeRateBadge
+          rate={exchangeRate}
+          date={rateDate}
+          source={rateSource}
+          isAdmin={session?.user?.role === "ADMIN"}
+          onRateChange={(r) => setExchangeRate(r)}
+        />
       </div>
 
       {isCopied && (

@@ -189,6 +189,12 @@ model ProductBrochure {
   createdAt   DateTime @default(now())
 }
 
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
 model BarcodeCache {
   id        String   @id @default(cuid())
   barcode   String   @unique

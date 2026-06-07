@@ -9,6 +9,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Plus, Search, Pencil, Trash2, ArrowLeftRight, CheckCircle, Ship, Copy, ShoppingCart, RefreshCw, FileText, Download } from "lucide-react";
+import ExchangeRateBadge from "@/components/ExchangeRateBadge";
 import BrochureCard from "@/components/BrochureCard";
 import { useRouter } from "next/navigation";
 import ImageGallery from "@/components/ImageGallery";
@@ -118,11 +119,17 @@ export default function ProductsPage() {
   const [brochureProduct, setBrochureProduct] = useState<Product | null>(null);
   const [recalculating, setRecalculating] = useState(false);
   const [exchangeRate, setExchangeRate] = useState<number>(0);
+  const [rateDate, setRateDate] = useState<string | null>(null);
+  const [rateSource, setRateSource] = useState<string | undefined>();
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 50;
 
   useEffect(() => {
-    fetch("/api/exchange-rate").then(r => r.json()).then(d => setExchangeRate(d.rate));
+    fetch("/api/exchange-rate").then(r => r.json()).then(d => {
+      setExchangeRate(d.rate);
+      setRateDate(d.date);
+      setRateSource(d.source);
+    });
   }, []);
 
   // Filter өөрчлөгдөхөд эхний хуудас руу буцах
@@ -277,6 +284,15 @@ export default function ProductsPage() {
           <p className="text-sm text-gray-400 mt-0.5">{grouped.length} бүтээгдэхүүн</p>
         </div>
         <div className="flex items-center gap-2">
+          {isAdmin && (
+            <ExchangeRateBadge
+              rate={exchangeRate}
+              date={rateDate}
+              source={rateSource}
+              isAdmin={isAdmin}
+              onRateChange={(r) => setExchangeRate(r)}
+            />
+          )}
           {isAdmin && (
             <a href="/api/products/export" download>
               <Button variant="outline" className="gap-2 h-9 text-sm">
