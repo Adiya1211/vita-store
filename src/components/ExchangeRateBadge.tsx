@@ -69,13 +69,12 @@ export default function ExchangeRateBadge({ rate, date, source, isAdmin, onRateC
 
   return (
     <div className="ml-auto flex items-center gap-1.5 text-xs text-gray-400 bg-gray-50 border rounded-lg px-3 py-1.5">
-      <RefreshCw size={11} className={rate === 0 ? "animate-spin" : ""} />
+      <RefreshCw size={11} />
       {rate > 0 ? (
         <>
           <span>
             1 A$ = <span className="font-semibold text-gray-700">₮{rate.toLocaleString("mn-MN")}</span>
             {date && <span className="ml-1 text-gray-300">({date})</span>}
-            {source === "manual" && <span className="ml-1 text-blue-400">(гараар)</span>}
           </span>
           {isAdmin && (
             <button
@@ -88,7 +87,18 @@ export default function ExchangeRateBadge({ rate, date, source, isAdmin, onRateC
           )}
         </>
       ) : (
-        <span>Ханш татаж байна...</span>
+        <>
+          <span>Ханш тохируулаагүй</span>
+          {isAdmin && (
+            <button
+              onClick={() => { setInput(""); setEditing(true); }}
+              className="ml-1 text-blue-400 hover:text-blue-600 transition-colors font-medium"
+              title="Ханш оруулах"
+            >
+              Оруулах
+            </button>
+          )}
+        </>
       )}
     </div>
   );
