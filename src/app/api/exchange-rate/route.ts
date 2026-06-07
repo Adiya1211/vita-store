@@ -19,6 +19,17 @@ export async function GET() {
   return NextResponse.json({ rate: 0, date: null, source: "none" });
 }
 
+async function ensureSettingTable() {
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "Setting" (
+      "key" TEXT NOT NULL,
+      "value" TEXT NOT NULL,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT NOW(),
+      CONSTRAINT "Setting_pkey" PRIMARY KEY ("key")
+    );
+  `);
+}
+
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session || session.user.role !== "ADMIN") {
@@ -31,11 +42,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Буруу утга" }, { status: 400 });
   }
 
-  await prisma.setting.upsert({
-    where: { key: "exchange_rate" },
-    update: { value: String(rateNum) },
-    create: { key: "exchange_rate", value: String(rateNum) },
-  });
+  try {
+    await prisma.setting.upsert({
+      where: { key: "exchange_rate" },
+      update: { value: String(rateNum) },
+      create: { key: "exchange_rate", value: String(rateNum) },
+    });
+  } catch {
+    // Хүснэгт байхгүй бол автоматаар үүсгэж дахин оролдоно
+    await ensureSettingTable();
+    await prisma.setting.upsert({
+      where: { key: "exchange_rate" },
+      update: { value: String(rateNum) },
+      create: { key: "exchange_rate", value: String(rateNum) },
+    });
+  }
 
   return NextResponse.json({ ok: true, rate: rateNum });
 }

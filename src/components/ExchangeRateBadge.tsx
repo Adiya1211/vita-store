@@ -88,14 +88,14 @@ export default function ExchangeRateBadge({ rate, date, source, isAdmin, onRateC
         </>
       ) : (
         <>
-          <span>Ханш тохируулаагүй</span>
+          <span className="text-gray-300">1 A$ = ₮ —</span>
           {isAdmin && (
             <button
               onClick={() => { setInput(""); setEditing(true); }}
-              className="ml-1 text-blue-400 hover:text-blue-600 transition-colors font-medium"
+              className="ml-1 text-blue-400 hover:text-blue-600 transition-colors"
               title="Ханш оруулах"
             >
-              Оруулах
+              <Pencil size={11} />
             </button>
           )}
         </>
