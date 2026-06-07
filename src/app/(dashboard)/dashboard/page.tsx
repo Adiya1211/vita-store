@@ -30,6 +30,8 @@ interface DashboardData {
   totalBonus: number; creditCount: number; creditAmount: number; userStats: UserStat[]; shipments: ShipmentInfo[]; shipmentsCount: number;
   dailySales: { date: string; amount: number }[];
   audToMnt: number;
+  statsTotalQty: number; statsTotalPending: number; statsTotalApproved: number;
+  statsTotalValue: number; statsTotalProfit: number; statsTotalSales: number; statsTotalRevenue: number;
 }
 interface Product {
   id: string; sequenceNumber: number; status: "PENDING" | "APPROVED";
@@ -308,13 +310,13 @@ export default function DashboardPage() {
                   <tfoot>
                     <tr className="bg-gray-50 border-t-2 border-gray-200">
                       <td className="px-5 py-3 font-semibold text-gray-700">Нийт</td>
-                      <td className="px-5 py-3 text-right font-semibold font-mono text-gray-700">{data.totalQuantity}</td>
-                      <td className="px-5 py-3 text-right font-semibold font-mono text-orange-600">{data.userStats.reduce((s, u) => s + u.pending, 0)}</td>
-                      <td className="px-5 py-3 text-right font-semibold font-mono text-teal-600">{data.userStats.reduce((s, u) => s + u.approved, 0)}</td>
-                      <td className="px-5 py-3 text-right font-semibold font-mono text-gray-700">{data.totalValue.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                      <td className="px-5 py-3 text-right font-semibold font-mono"><span className={data.totalProfit >= 0 ? "text-green-600" : "text-red-500"}>{data.totalProfit.toLocaleString("mn-MN")}</span></td>
-                      <td className="px-5 py-3 text-right font-semibold font-mono text-green-700">{data.totalSalesCount}</td>
-                      <td className="px-5 py-3 text-right font-semibold font-mono text-green-700">{data.totalRevenue.toLocaleString("mn-MN")}</td>
+                      <td className="px-5 py-3 text-right font-semibold font-mono text-gray-700">{data.statsTotalQty}</td>
+                      <td className="px-5 py-3 text-right font-semibold font-mono text-orange-600">{data.statsTotalPending}</td>
+                      <td className="px-5 py-3 text-right font-semibold font-mono text-teal-600">{data.statsTotalApproved}</td>
+                      <td className="px-5 py-3 text-right font-semibold font-mono text-gray-700">{data.statsTotalValue.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td className="px-5 py-3 text-right font-semibold font-mono"><span className={data.statsTotalProfit >= 0 ? "text-green-600" : "text-red-500"}>{data.statsTotalProfit.toLocaleString("mn-MN")}</span></td>
+                      <td className="px-5 py-3 text-right font-semibold font-mono text-green-700">{data.statsTotalSales}</td>
+                      <td className="px-5 py-3 text-right font-semibold font-mono text-green-700">{data.statsTotalRevenue.toLocaleString("mn-MN")}</td>
                     </tr>
                   </tfoot>
                 </table>

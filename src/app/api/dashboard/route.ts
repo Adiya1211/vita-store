@@ -10,17 +10,12 @@ export async function GET() {
   const isAdmin = session.user.role === "ADMIN";
   const where = isAdmin ? {} : { assignedUserId: session.user.id };
 
-  // AUD → MNT ханш татах (1 цагт кэш)
-  let audToMnt = 2554;
+  // Зөвхөн гараар тохируулсан ханш ашиглана
+  let audToMnt = 0;
   try {
-    const rateRes = await fetch("https://api.exchangerate-api.com/v4/latest/AUD", {
-      next: { revalidate: 3600 },
-    });
-    if (rateRes.ok) {
-      const rateData = await rateRes.json();
-      audToMnt = Math.round(rateData.rates.MNT);
-    }
-  } catch { /* fallback утга ашиглана */ }
+    const setting = await prisma.setting.findUnique({ where: { key: "exchange_rate" } });
+    if (setting) audToMnt = Number(setting.value);
+  } catch { /* Setting хүснэгт байхгүй бол 0 */ }
 
   // Сүүлийн 30 хоногийн борлуулалт (chart-д ашиглах)
   const thirtyDaysAgo = new Date();
@@ -60,13 +55,13 @@ export async function GET() {
       : Promise.resolve([]),
   ]);
 
-  // Бүтээгдэхүүний хуудастай ижил бүлэглэх логик (бар кодоор)
-  const groupKey = (p: { barcode: string | null; brand: string; name: string; dosage: string | null }) =>
-    p.barcode ? p.barcode : `${p.brand}||${p.name}||${p.dosage ?? ""}`;
-
   type ProductItem = typeof products[number];
   type SaleItem = typeof sales[number];
   type UserItem = typeof users[number];
+
+  // Бүтээгдэхүүний хуудастай ижил бүлэглэх логик
+  const groupKey = (p: { barcode: string | null; brand: string; name: string; dosage: string | null }) =>
+    p.barcode ? p.barcode : `${p.brand}||${p.name}||${p.dosage ?? ""}`;
 
   const uniqueKeys = new Set(products.map(groupKey));
   const pendingKeys = new Set(products.filter((p: ProductItem) => p.status === "PENDING").map(groupKey));
@@ -82,11 +77,14 @@ export async function GET() {
     const costAUD = p.discountedPrice ?? p.costPrice;
     return sum + costAUD * p.quantity;
   }, 0);
+
   // Нийт ашиг = (зарах үнэ ₮ − хямдарсан үнэ A$ × ханш) × тоо
-  const totalProfit = products.reduce((sum: number, p: ProductItem) => {
-    const effectiveCostAUD = p.discountedPrice ?? p.costPrice;
-    return sum + (p.sellingPrice - effectiveCostAUD * audToMnt) * p.quantity;
-  }, 0);
+  const totalProfit = audToMnt > 0
+    ? products.reduce((sum: number, p: ProductItem) => {
+        const effectiveCostAUD = p.discountedPrice ?? p.costPrice;
+        return sum + (p.sellingPrice - effectiveCostAUD * audToMnt) * p.quantity;
+      }, 0)
+    : 0;
 
   // Нийт борлуулалтын статистик
   const totalSalesCount = sales.length;
@@ -99,17 +97,27 @@ export async function GET() {
   // Борлуулагч тус бүрийн статистик
   const userStats = users.map((u: UserItem) => {
     const uProducts = products.filter((p: ProductItem) => p.assignedUserId === u.id);
-    const uValue = uProducts.reduce((sum: number, p: ProductItem) => sum + (p.discountedPrice ?? p.costPrice) * p.quantity, 0);
-    const uProfit = uProducts.reduce((sum: number, p: ProductItem) => {
-      const effectiveCostAUD = p.discountedPrice ?? p.costPrice;
-      return sum + (p.sellingPrice - effectiveCostAUD * audToMnt) * p.quantity;
-    }, 0);
+    const uValue = uProducts.reduce((sum: number, p: ProductItem) =>
+      sum + (p.discountedPrice ?? p.costPrice) * p.quantity, 0);
+    const uProfit = audToMnt > 0
+      ? uProducts.reduce((sum: number, p: ProductItem) => {
+          const effectiveCostAUD = p.discountedPrice ?? p.costPrice;
+          return sum + (p.sellingPrice - effectiveCostAUD * audToMnt) * p.quantity;
+        }, 0)
+      : 0;
     const uSales = sales.filter((s: SaleItem) => s.soldById === u.id);
     const uRevenue = uSales.reduce((sum: number, s: SaleItem) => sum + s.totalAmount, 0);
     const uBonus = uSales.reduce((sum: number, s: SaleItem) => sum + (s.bonus ?? 0), 0);
+
+    // Тоогоор (ширхэгээр) тооцно
     const uQuantity = uProducts.reduce((sum: number, p: ProductItem) => sum + p.quantity, 0);
-    const uPending = uProducts.filter((p: ProductItem) => p.status === "PENDING").reduce((sum: number, p: ProductItem) => sum + p.quantity, 0);
-    const uApproved = uProducts.filter((p: ProductItem) => p.status === "APPROVED").reduce((sum: number, p: ProductItem) => sum + p.quantity, 0);
+    const uPending = uProducts
+      .filter((p: ProductItem) => p.status === "PENDING")
+      .reduce((sum: number, p: ProductItem) => sum + p.quantity, 0);
+    const uApproved = uProducts
+      .filter((p: ProductItem) => p.status === "APPROVED")
+      .reduce((sum: number, p: ProductItem) => sum + p.quantity, 0);
+
     return {
       id: u.id,
       name: u.name,
@@ -124,16 +132,24 @@ export async function GET() {
     };
   });
 
+  // Footer нийлбэр — userStats-аас бодно (таарсан байхын тулд)
+  const statsTotalQty     = userStats.reduce((s, u) => s + u.total, 0);
+  const statsTotalPending = userStats.reduce((s, u) => s + u.pending, 0);
+  const statsTotalApproved= userStats.reduce((s, u) => s + u.approved, 0);
+  const statsTotalValue   = userStats.reduce((s, u) => s + u.totalValue, 0);
+  const statsTotalProfit  = userStats.reduce((s, u) => s + u.totalProfit, 0);
+  const statsTotalSales   = userStats.reduce((s, u) => s + u.salesCount, 0);
+  const statsTotalRevenue = userStats.reduce((s, u) => s + u.salesRevenue, 0);
+
   // Хуваарилаагүй бараа
   const unassigned = new Set(products.filter((p: ProductItem) => !p.assignedUserId).map(groupKey)).size;
 
-  // Сүүлийн 30 хоногийн өдөр тус бүрийн борлуулалт (chart)
+  // Сүүлийн 30 хоногийн өдөр тус бүрийн борлуулалт
   const dailySalesMap: Record<string, number> = {};
   for (let i = 29; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    const key = d.toISOString().split("T")[0];
-    dailySalesMap[key] = 0;
+    dailySalesMap[d.toISOString().split("T")[0]] = 0;
   }
   for (const s of recentSales) {
     const key = new Date(s.soldAt).toISOString().split("T")[0];
@@ -158,6 +174,14 @@ export async function GET() {
     creditCount,
     creditAmount,
     userStats,
+    // Footer нийлбэрүүд
+    statsTotalQty,
+    statsTotalPending,
+    statsTotalApproved,
+    statsTotalValue,
+    statsTotalProfit,
+    statsTotalSales,
+    statsTotalRevenue,
     shipments,
     shipmentsCount: shipments.length,
     audToMnt,

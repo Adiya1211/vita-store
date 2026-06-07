@@ -4,33 +4,19 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
-  // Гараар тохируулсан ханш байвал тэрийг ашиглана
   try {
-    const manual = await prisma.setting.findUnique({ where: { key: "exchange_rate" } });
-    if (manual) {
+    const setting = await prisma.setting.findUnique({ where: { key: "exchange_rate" } });
+    if (setting) {
       return NextResponse.json({
-        rate: Number(manual.value),
-        date: manual.updatedAt.toISOString().split("T")[0],
+        rate: Number(setting.value),
+        date: setting.updatedAt.toISOString().split("T")[0],
         source: "manual",
       });
     }
-  } catch { /* Setting хүснэгт байхгүй бол автомат ханш ашиглана */ }
+  } catch { /* Setting хүснэгт байхгүй */ }
 
-  // Автомат ханш татах
-  try {
-    const res = await fetch("https://api.exchangerate-api.com/v4/latest/AUD", {
-      next: { revalidate: 3600 },
-    });
-    if (!res.ok) throw new Error("fetch failed");
-    const data = await res.json();
-    return NextResponse.json({
-      rate: Math.round(data.rates.MNT),
-      date: data.date,
-      source: "auto",
-    });
-  } catch {
-    return NextResponse.json({ rate: 2554, date: null, source: "fallback" });
-  }
+  // Тохируулаагүй бол 0 буцаана
+  return NextResponse.json({ rate: 0, date: null, source: "none" });
 }
 
 export async function POST(req: NextRequest) {
