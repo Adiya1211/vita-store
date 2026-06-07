@@ -71,6 +71,8 @@ export async function GET() {
   const totalQuantity = products.reduce((sum: number, p: ProductItem) => sum + p.quantity, 0);
   const pendingCount = pendingKeys.size;
   const approvedCount = approvedKeys.size;
+  const pendingQuantity = products.filter((p: ProductItem) => p.status === "PENDING").reduce((sum: number, p: ProductItem) => sum + p.quantity, 0);
+  const approvedQuantity = products.filter((p: ProductItem) => p.status === "APPROVED").reduce((sum: number, p: ProductItem) => sum + p.quantity, 0);
 
   // Нийт өртөг = хямдарсан үнэ × тоо (A$)
   const totalValue = products.reduce((sum: number, p: ProductItem) => {
@@ -165,6 +167,8 @@ export async function GET() {
     totalQuantity,
     pendingCount,
     approvedCount,
+    pendingQuantity,
+    approvedQuantity,
     unassigned,
     totalValue,
     totalProfit,

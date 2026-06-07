@@ -30,6 +30,7 @@ interface DashboardData {
   totalBonus: number; creditCount: number; creditAmount: number; userStats: UserStat[]; shipments: ShipmentInfo[]; shipmentsCount: number;
   dailySales: { date: string; amount: number }[];
   audToMnt: number;
+  pendingQuantity: number; approvedQuantity: number;
   statsTotalQty: number; statsTotalPending: number; statsTotalApproved: number;
   statsTotalValue: number; statsTotalProfit: number; statsTotalSales: number; statsTotalRevenue: number;
 }
@@ -153,10 +154,16 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard icon={Package} label="Нийт бараа"
           value={isAdmin ? data.totalProducts : `${data.totalQuantity}ш`}
-          sub={isAdmin ? `${approvedPct}% зөвшөөрөгдсөн` : `${data.totalProducts} төрлийн бараа`}
+          sub={isAdmin ? `${data.totalQuantity}ш · ${approvedPct}% зөвшөөрөгдсөн` : `${data.totalProducts} төрлийн бараа`}
           color="bg-blue-500" />
-        <StatCard icon={Clock} label="Хүлээгдэж байна" value={data.pendingCount} sub="Approve хүлээж байгаа" color="bg-orange-400" />
-        <StatCard icon={CheckCircle} label="Зөвшөөрөгдсөн" value={data.approvedCount} sub="Бэлэн болсон бараа" color="bg-teal-500" />
+        <StatCard icon={Clock} label="Хүлээгдэж байна"
+          value={data.pendingCount}
+          sub={`${data.pendingQuantity}ш`}
+          color="bg-orange-400" />
+        <StatCard icon={CheckCircle} label="Зөвшөөрөгдсөн"
+          value={data.approvedCount}
+          sub={`${data.approvedQuantity}ш`}
+          color="bg-teal-500" />
         <StatCard icon={Ship} label="Ачааны тоо" value={data.shipmentsCount} sub="Нийт илгээлт" color="bg-indigo-500" />
       </div>
 
