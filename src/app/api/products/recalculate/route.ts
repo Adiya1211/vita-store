@@ -9,17 +9,16 @@ export async function POST() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Шинэ ханш татах
-  let audToMnt = 2554;
+  // Гараар тохируулсан ханш татах
+  let audToMnt = 0;
   try {
-    const rateRes = await fetch("https://api.exchangerate-api.com/v4/latest/AUD", {
-      next: { revalidate: 3600 },
-    });
-    if (rateRes.ok) {
-      const rateData = await rateRes.json();
-      audToMnt = Math.round(rateData.rates.MNT);
-    }
-  } catch { /* fallback */ }
+    const setting = await prisma.setting.findUnique({ where: { key: "exchange_rate" } });
+    if (setting) audToMnt = Number(setting.value);
+  } catch { /* Setting хүснэгт байхгүй */ }
+
+  if (!audToMnt || audToMnt <= 0) {
+    return NextResponse.json({ error: "Ханш тохируулаагүй байна. Эхлээд ханш оруулна уу." }, { status: 400 });
+  }
 
   // Бүх бараа татах
   const products = await prisma.product.findMany({
@@ -38,8 +37,5 @@ export async function POST() {
 
   await prisma.$transaction(updates);
 
-  return NextResponse.json({
-    updated: products.length,
-    rate: audToMnt,
-  });
+  return NextResponse.json({ updated: products.length, rate: audToMnt });
 }
