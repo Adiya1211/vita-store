@@ -43,18 +43,29 @@ interface Product {
 }
 
 /* ─── StatCard ───────────────────────────────────────────── */
-function StatCard({ icon: Icon, label, value, sub, color }: {
+function StatCard({ icon: Icon, label, value, sub, color, breakdown }: {
   icon: React.ElementType; label: string; value: string | number; sub?: string; color: string;
+  breakdown?: { name: string; count: number }[];
 }) {
   return (
     <div className="bg-white rounded-xl border shadow-sm p-5 flex items-start gap-4">
       <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${color}`}>
         <Icon size={18} className="text-white" />
       </div>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="text-sm text-gray-500">{label}</p>
         <p className="text-2xl font-bold text-gray-900 mt-0.5">{value}</p>
         {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+        {breakdown && breakdown.length > 0 && (
+          <div className="mt-2 space-y-1">
+            {breakdown.map(b => (
+              <div key={b.name} className="flex items-center justify-between gap-2">
+                <span className="text-xs text-gray-500 truncate">{b.name}</span>
+                <span className="text-xs font-semibold text-gray-700 shrink-0">{b.count}ш</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -155,15 +166,18 @@ export default function DashboardPage() {
         <StatCard icon={Package} label="Нийт бараа"
           value={isAdmin ? data.totalProducts : `${data.totalQuantity}ш`}
           sub={isAdmin ? `${data.totalQuantity}ш · ${approvedPct}% зөвшөөрөгдсөн` : `${data.totalProducts} төрлийн бараа`}
-          color="bg-blue-500" />
+          color="bg-blue-500"
+          breakdown={isAdmin ? data.userStats.map(u => ({ name: u.name, count: u.total })) : undefined} />
         <StatCard icon={Clock} label="Хүлээгдэж байна"
           value={data.pendingCount}
           sub={`${data.pendingQuantity}ш`}
-          color="bg-orange-400" />
+          color="bg-orange-400"
+          breakdown={isAdmin ? data.userStats.filter(u => u.pending > 0).map(u => ({ name: u.name, count: u.pending })) : undefined} />
         <StatCard icon={CheckCircle} label="Зөвшөөрөгдсөн"
           value={data.approvedCount}
           sub={`${data.approvedQuantity}ш`}
-          color="bg-teal-500" />
+          color="bg-teal-500"
+          breakdown={isAdmin ? data.userStats.filter(u => u.approved > 0).map(u => ({ name: u.name, count: u.approved })) : undefined} />
         <StatCard icon={Ship} label="Ачааны тоо" value={data.shipmentsCount} sub="Нийт илгээлт" color="bg-indigo-500" />
       </div>
 
