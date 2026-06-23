@@ -250,7 +250,8 @@ export default function ProductsPage() {
     const matchSearch = search === "" ||
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.brand.toLowerCase().includes(search.toLowerCase()) ||
-      (p.store ?? "").toLowerCase().includes(search.toLowerCase());
+      (p.store ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      (p.barcode ?? "").includes(search);
     return matchTab && matchUser && matchShipment && matchBrand && matchBarcode && matchSearch;
   });
 
@@ -355,12 +356,12 @@ export default function ProductsPage() {
           ))}
         </div>
 
-        {/* Нэрээр хайх */}
-        <div className="relative flex-1 min-w-44">
+        {/* Нэр, брэнд, бар кодоор хайх */}
+        <div className="relative flex-1 min-w-52">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <Input
             className="pl-9 h-9 bg-white text-sm"
-            placeholder="Нэрээр хайх..."
+            placeholder="Нэр, брэнд, бар кодоор хайх..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
