@@ -106,6 +106,8 @@ export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [fieldConfigs, setFieldConfigs] = useState<FieldConfig[]>([]);
   const [search, setSearch] = useState("");
+  const [barcodeSearch, setBarcodeSearch] = useState("");
+  const [selectedBrand, setSelectedBrand] = useState("ALL");
   const [activeTab, setActiveTab] = useState<"ALL" | ProductStatus>("ALL");
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -133,7 +135,7 @@ export default function ProductsPage() {
   }, []);
 
   // Filter өөрчлөгдөхөд эхний хуудас руу буцах
-  useEffect(() => { setCurrentPage(1); }, [search, activeTab, selectedUserId, selectedShipmentId]);
+  useEffect(() => { setCurrentPage(1); }, [search, barcodeSearch, selectedBrand, activeTab, selectedUserId, selectedShipmentId]);
 
   async function handleRecalculate() {
     if (!confirm(`Бүх барааны зарах үнийг шинэ ханшаар (1 A$ = ₮${exchangeRate.toLocaleString("mn-MN")}) дахин тооцоолох уу?`)) return;
@@ -230,6 +232,8 @@ export default function ProductsPage() {
     return true;
   });
 
+  const brands = ["ALL", ...Array.from(new Set(products.map(p => p.brand))).sort()];
+
   const filtered = products.filter((p) => {
     const matchTab = activeTab === "ALL" || (p.status ?? "PENDING") === activeTab;
     const matchUser =
@@ -240,12 +244,13 @@ export default function ProductsPage() {
       selectedShipmentId === "ALL" ? true :
       selectedShipmentId === "NONE" ? p.shipment === null :
       p.shipment?.id === selectedShipmentId;
-    const matchSearch =
+    const matchBrand = selectedBrand === "ALL" || p.brand === selectedBrand;
+    const matchBarcode = barcodeSearch === "" || (p.barcode ?? "").includes(barcodeSearch);
+    const matchSearch = search === "" ||
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.brand.toLowerCase().includes(search.toLowerCase()) ||
-      (p.store ?? "").toLowerCase().includes(search.toLowerCase()) ||
-      (p.barcode ?? "").includes(search);
-    return matchTab && matchUser && matchShipment && matchSearch;
+      (p.store ?? "").toLowerCase().includes(search.toLowerCase());
+    return matchTab && matchUser && matchShipment && matchBrand && matchBarcode && matchSearch;
   });
 
   // Бар кодоор бүлэглэх (бар код байхгүй бол brand+name+dosage)
@@ -349,16 +354,39 @@ export default function ProductsPage() {
           ))}
         </div>
 
-        {/* Search */}
-        <div className="relative flex-1 min-w-52">
+        {/* Нэрээр хайх */}
+        <div className="relative flex-1 min-w-44">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <Input
             className="pl-9 h-9 bg-white text-sm"
-            placeholder="Нэр, брэнд, бар кодоор хайх..."
+            placeholder="Нэрээр хайх..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
+
+        {/* Бар кодоор хайх */}
+        <div className="relative min-w-36">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <Input
+            className="pl-9 h-9 bg-white text-sm font-mono"
+            placeholder="Бар код..."
+            value={barcodeSearch}
+            onChange={(e) => setBarcodeSearch(e.target.value)}
+          />
+        </div>
+
+        {/* Брэндээр шүүх */}
+        <select
+          value={selectedBrand}
+          onChange={(e) => setSelectedBrand(e.target.value)}
+          className="border rounded-lg px-3 h-9 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-gray-200"
+        >
+          <option value="ALL">Бүх брэнд</option>
+          {brands.filter(b => b !== "ALL").map(b => (
+            <option key={b} value={b}>{b}</option>
+          ))}
+        </select>
 
         {/* User filter */}
         {isAdmin && (
