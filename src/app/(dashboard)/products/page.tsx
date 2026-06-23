@@ -15,7 +15,6 @@ import { useRouter } from "next/navigation";
 import ImageGallery from "@/components/ImageGallery";
 import { Input } from "@/components/ui/input";
 import TransferModal from "@/components/TransferModal";
-import BarcodeScanner from "@/components/BarcodeScanner";
 import ShipmentModal from "@/components/ShipmentModal";
 import SaleModal from "@/components/SaleModal";
 import { toast } from "sonner";
@@ -107,7 +106,6 @@ export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [fieldConfigs, setFieldConfigs] = useState<FieldConfig[]>([]);
   const [search, setSearch] = useState("");
-  const [barcodeSearch, setBarcodeSearch] = useState("");
   const [selectedBrand, setSelectedBrand] = useState("ALL");
   const [activeTab, setActiveTab] = useState<"ALL" | ProductStatus>("ALL");
   const [loading, setLoading] = useState(true);
@@ -136,7 +134,7 @@ export default function ProductsPage() {
   }, []);
 
   // Filter өөрчлөгдөхөд эхний хуудас руу буцах
-  useEffect(() => { setCurrentPage(1); }, [search, barcodeSearch, selectedBrand, activeTab, selectedUserId, selectedShipmentId]);
+  useEffect(() => { setCurrentPage(1); }, [search, selectedBrand, activeTab, selectedUserId, selectedShipmentId]);
 
   async function handleRecalculate() {
     if (!confirm(`Бүх барааны зарах үнийг шинэ ханшаар (1 A$ = ₮${exchangeRate.toLocaleString("mn-MN")}) дахин тооцоолох уу?`)) return;
@@ -246,13 +244,12 @@ export default function ProductsPage() {
       selectedShipmentId === "NONE" ? p.shipment === null :
       p.shipment?.id === selectedShipmentId;
     const matchBrand = selectedBrand === "ALL" || p.brand === selectedBrand;
-    const matchBarcode = barcodeSearch === "" || (p.barcode ?? "").includes(barcodeSearch);
     const matchSearch = search === "" ||
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.brand.toLowerCase().includes(search.toLowerCase()) ||
       (p.store ?? "").toLowerCase().includes(search.toLowerCase()) ||
       (p.barcode ?? "").includes(search);
-    return matchTab && matchUser && matchShipment && matchBrand && matchBarcode && matchSearch;
+    return matchTab && matchUser && matchShipment && matchBrand && matchSearch;
   });
 
   // Бар кодоор бүлэглэх (бар код байхгүй бол brand+name+dosage)
@@ -364,15 +361,6 @@ export default function ProductsPage() {
             placeholder="Нэр, брэнд, бар кодоор хайх..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-
-        {/* Бар кодоор хайх — камер дэмжинэ */}
-        <div className="min-w-56">
-          <BarcodeScanner
-            initialValue={barcodeSearch}
-            onResult={(code) => setBarcodeSearch(code)}
-            onChange={(val) => setBarcodeSearch(val)}
           />
         </div>
 
