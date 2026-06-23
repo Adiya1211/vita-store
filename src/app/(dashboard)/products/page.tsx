@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation";
 import ImageGallery from "@/components/ImageGallery";
 import { Input } from "@/components/ui/input";
 import TransferModal from "@/components/TransferModal";
+import BarcodeScanner from "@/components/BarcodeScanner";
 import ShipmentModal from "@/components/ShipmentModal";
 import SaleModal from "@/components/SaleModal";
 import { toast } from "sonner";
@@ -365,14 +366,12 @@ export default function ProductsPage() {
           />
         </div>
 
-        {/* Бар кодоор хайх */}
-        <div className="relative min-w-36">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <Input
-            className="pl-9 h-9 bg-white text-sm font-mono"
-            placeholder="Бар код..."
-            value={barcodeSearch}
-            onChange={(e) => setBarcodeSearch(e.target.value)}
+        {/* Бар кодоор хайх — камер дэмжинэ */}
+        <div className="min-w-56">
+          <BarcodeScanner
+            initialValue={barcodeSearch}
+            onResult={(code) => setBarcodeSearch(code)}
+            onChange={(val) => setBarcodeSearch(val)}
           />
         </div>
 

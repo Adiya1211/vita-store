@@ -7,10 +7,11 @@ import { Camera, X } from "lucide-react";
 
 interface Props {
   onResult: (barcode: string) => void;
+  onChange?: (value: string) => void;
   initialValue?: string;
 }
 
-export default function BarcodeScanner({ onResult, initialValue = "" }: Props) {
+export default function BarcodeScanner({ onResult, onChange, initialValue = "" }: Props) {
   const [barcode, setBarcode] = useState(initialValue);
   const [cameraOpen, setCameraOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -118,7 +119,7 @@ export default function BarcodeScanner({ onResult, initialValue = "" }: Props) {
           type="text"
           placeholder="Barcode уншуулах эсвэл гараар бичнэ үү..."
           value={barcode}
-          onChange={(e) => setBarcode(e.target.value)}
+          onChange={(e) => { setBarcode(e.target.value); onChange?.(e.target.value); }}
           onKeyDown={handleKeyDown}
           className="font-mono"
         />
