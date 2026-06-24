@@ -17,6 +17,7 @@ import SaleModal from "@/components/SaleModal";
 import TransferModal from "@/components/TransferModal";
 import BrochureCard from "@/components/BrochureCard";
 import { ArrowLeftRight, FileText } from "lucide-react";
+import BarcodeScanButton from "@/components/BarcodeScanButton";
 
 /* ─── Types ─────────────────────────────────────────────── */
 interface UserStat {
@@ -91,6 +92,7 @@ export default function DashboardPage() {
   const [transferProduct, setTransferProduct] = useState<Product | null>(null);
   const [brochureProduct, setBrochureProduct] = useState<Product | null>(null);
   const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
+  const [selectedBrand, setSelectedBrand] = useState("ALL");
 
   useEffect(() => {
     fetch("/api/dashboard")
@@ -133,16 +135,20 @@ export default function DashboardPage() {
 
   const approvedPct = data.totalProducts > 0 ? Math.round((data.approvedCount / data.totalProducts) * 100) : 0;
 
+  const brands = ["ALL", ...Array.from(new Set(products.map(p => p.brand))).sort()];
+
   /* Staff product filters */
   const filtered = products.filter(p => {
     const matchTab = activeTab === "ALL" || p.status === activeTab;
     const matchShip = selectedShipmentId === "ALL" ? true
       : selectedShipmentId === "NONE" ? !p.shipment
       : p.shipment?.id === selectedShipmentId;
-    const matchSearch =
+    const matchBrand = selectedBrand === "ALL" || p.brand === selectedBrand;
+    const matchSearch = search === "" ||
       p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.brand.toLowerCase().includes(search.toLowerCase());
-    return matchTab && matchShip && matchSearch;
+      p.brand.toLowerCase().includes(search.toLowerCase()) ||
+      (p.barcode ?? "").includes(search);
+    return matchTab && matchShip && matchBrand && matchSearch;
   });
 
   const tabCounts = {
@@ -378,16 +384,31 @@ export default function DashboardPage() {
               ))}
             </div>
 
-            {/* Search */}
-            <div className="relative flex-1 min-w-44">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <Input
-                className="pl-8 h-9 bg-white text-sm"
-                placeholder="Нэр, брэнд хайх..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
+            {/* Search + camera */}
+            <div className="relative flex-1 min-w-44 flex gap-1 items-center">
+              <div className="relative flex-1">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Input
+                  className="pl-8 h-9 bg-white text-sm"
+                  placeholder="Нэр, брэнд, бар кодоор хайх..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+              <BarcodeScanButton onResult={(code) => setSearch(code)} />
             </div>
+
+            {/* Brand filter */}
+            <select
+              value={selectedBrand}
+              onChange={(e) => setSelectedBrand(e.target.value)}
+              className="border rounded-lg px-3 h-9 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-gray-200"
+            >
+              <option value="ALL">Бүх брэнд</option>
+              {brands.filter(b => b !== "ALL").map(b => (
+                <option key={b} value={b}>{b}</option>
+              ))}
+            </select>
 
             {/* Shipment filter */}
             {shipments.length > 0 && (
