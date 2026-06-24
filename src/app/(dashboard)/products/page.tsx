@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Plus, Search, Pencil, Trash2, ArrowLeftRight, CheckCircle, Ship, Copy, ShoppingCart, RefreshCw, FileText, Download } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, ArrowLeftRight, CheckCircle, Ship, Copy, ShoppingCart, RefreshCw, FileText, Download, X } from "lucide-react";
 import BarcodeScanButton from "@/components/BarcodeScanButton";
 import ExchangeRateBadge from "@/components/ExchangeRateBadge";
 import BrochureCard from "@/components/BrochureCard";
@@ -359,11 +359,20 @@ export default function ProductsPage() {
           <div className="relative flex-1">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <Input
-              className="pl-9 h-9 bg-white text-sm"
+              className={`pl-9 h-9 bg-white text-sm ${search ? "pr-8" : ""}`}
               placeholder="Нэр, брэнд, бар кодоор хайх..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X size={14} />
+              </button>
+            )}
           </div>
           <BarcodeScanButton onResult={(code) => setSearch(code)} />
         </div>
