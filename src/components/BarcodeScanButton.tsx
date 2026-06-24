@@ -9,11 +9,15 @@ export default function BarcodeScanButton({ onResult }: { onResult: (code: strin
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number>(0);
   const zxingRef = useRef<any>(null);
+  const controlsRef = useRef<any>(null);
+  const doneRef = useRef(false);
   const detectorRef = useRef<any>(null);
 
   const stop = useCallback(() => {
     cancelAnimationFrame(rafRef.current);
-    if (zxingRef.current) { try { zxingRef.current.reset(); } catch {} zxingRef.current = null; }
+    // ZXing-ийн декод давталтыг зогсоох — reset() шинэ хувилбарт байхгүй тул controls.stop() ашиглана
+    if (controlsRef.current) { try { controlsRef.current.stop(); } catch {} controlsRef.current = null; }
+    if (zxingRef.current) { try { zxingRef.current.reset?.(); } catch {} zxingRef.current = null; }
     streamRef.current?.getTracks().forEach(t => t.stop());
     streamRef.current = null;
     detectorRef.current = null;
@@ -25,6 +29,7 @@ export default function BarcodeScanButton({ onResult }: { onResult: (code: strin
   useEffect(() => {
     if (!open || !videoRef.current || !streamRef.current) return;
     const video = videoRef.current;
+    doneRef.current = false;
     video.srcObject = streamRef.current;
     video.play().catch(() => {});
 
@@ -33,14 +38,18 @@ export default function BarcodeScanButton({ onResult }: { onResult: (code: strin
       const detect = async () => {
         try {
           const barcodes = await detector.detect(video);
-          if (barcodes.length > 0) { onResult(barcodes[0].rawValue); stop(); return; }
+          if (barcodes.length > 0 && !doneRef.current) { doneRef.current = true; onResult(barcodes[0].rawValue); stop(); return; }
         } catch {}
         rafRef.current = requestAnimationFrame(detect);
       };
       video.addEventListener("playing", () => { rafRef.current = requestAnimationFrame(detect); }, { once: true });
     } else if (zxingRef.current) {
       zxingRef.current.decodeFromVideoElement(video, (result: any) => {
-        if (result) { onResult(result.getText()); stop(); }
+        if (result && !doneRef.current) { doneRef.current = true; onResult(result.getText()); stop(); }
+      }).then((controls: any) => {
+        // Декод амжилттай болсон бол үлдсэн controls-ийг шууд зогсооно (race-ээс хамгаална)
+        if (doneRef.current) { try { controls.stop(); } catch {} }
+        else controlsRef.current = controls;
       }).catch(() => {});
     }
   }, [open, stop, onResult]);
