@@ -89,7 +89,7 @@ export default function SaleModal({ product, onClose, onDone }: Props) {
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-sm max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShoppingCart size={16} className="text-green-500" />
@@ -97,7 +97,7 @@ export default function SaleModal({ product, onClose, onDone }: Props) {
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-1">
+        <div className="space-y-4 py-1 overflow-y-auto flex-1 -mx-1 px-1">
           {/* Бараа */}
           <div className="bg-gray-50 border rounded-lg px-3 py-2.5 space-y-0.5">
             <p className="font-medium text-sm">{product.brand} {product.name}</p>
