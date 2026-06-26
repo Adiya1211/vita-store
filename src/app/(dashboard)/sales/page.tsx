@@ -141,6 +141,7 @@ export default function SalesPage() {
   }, []);
 
   async function handleMarkPaid(id: string) {
+    if (!confirm("Энэ борлуулалтын төлбөрийн статусыг 'Төлөгдсөн' болгох уу?")) return;
     setUpdatingId(id);
     const res = await fetch("/api/sales", {
       method: "PATCH",
