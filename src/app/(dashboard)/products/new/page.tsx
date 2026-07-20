@@ -378,6 +378,7 @@ export default function NewProductPage() {
               Бар код
             </Label>
             <BarcodeScanner
+              key={formKey}
               onResult={handleBarcodeResult}
               initialValue={form.barcode || ""}
             />
