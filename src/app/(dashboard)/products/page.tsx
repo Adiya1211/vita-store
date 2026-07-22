@@ -138,6 +138,12 @@ export default function ProductsPage() {
     });
   }, []);
 
+  // URL-ийн ?status= параметрээр таб тохируулах (dashboard-аас шилжих үед)
+  useEffect(() => {
+    const status = new URLSearchParams(window.location.search).get("status");
+    if (status === "PENDING" || status === "APPROVED") setActiveTab(status);
+  }, []);
+
   // Filter өөрчлөгдөхөд эхний хуудас руу буцах
   useEffect(() => { setCurrentPage(1); }, [search, selectedBrand, activeTab, selectedUserId, selectedShipmentId, dateFrom, dateTo, sortKey, sortDir]);
 

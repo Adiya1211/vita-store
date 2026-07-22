@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { useSession } from "next-auth/react";
 import {
   Package, Clock, CheckCircle, DollarSign, TrendingUp, Ship, Users, UserX,
@@ -69,12 +70,12 @@ const STAFF_COLUMNS: { key: string; label: string; sortable: boolean }[] = [
 const ALWAYS_VISIBLE_FOR_STAFF = ["imageUrl", "sequenceNumber"];
 
 /* ─── StatCard ───────────────────────────────────────────── */
-function StatCard({ icon: Icon, label, value, sub, color, breakdown }: {
+function StatCard({ icon: Icon, label, value, sub, color, breakdown, href }: {
   icon: React.ElementType; label: string; value: string | number; sub?: string; color: string;
-  breakdown?: { name: string; count: number }[];
+  breakdown?: { name: string; count: number }[]; href?: string;
 }) {
-  return (
-    <div className="bg-white rounded-xl border shadow-sm p-5 flex items-start gap-4">
+  const card = (
+    <div className={`bg-white rounded-xl border shadow-sm p-5 flex items-start gap-4 h-full ${href ? "hover:shadow-md hover:border-gray-300 transition-all cursor-pointer" : ""}`}>
       <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${color}`}>
         <Icon size={18} className="text-white" />
       </div>
@@ -95,6 +96,7 @@ function StatCard({ icon: Icon, label, value, sub, color, breakdown }: {
       </div>
     </div>
   );
+  return href ? <Link href={href} className="block h-full">{card}</Link> : card;
 }
 
 /* ─── Main ───────────────────────────────────────────────── */
@@ -170,7 +172,6 @@ export default function DashboardPage() {
   }
   if (!data) return null;
 
-  const approvedPct = data.totalProducts > 0 ? Math.round((data.approvedCount / data.totalProducts) * 100) : 0;
 
   const brands = ["ALL", ...Array.from(new Set(products.map(p => p.brand))).sort()];
 
@@ -300,52 +301,55 @@ export default function DashboardPage() {
       {/* Summary cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard icon={Package} label="Нийт бараа"
-          value={isAdmin ? data.totalProducts : `${data.totalQuantity}ш`}
-          sub={isAdmin ? `${data.totalQuantity}ш · ${approvedPct}% зөвшөөрөгдсөн` : `${data.totalProducts} төрлийн бараа`}
+          value={`${data.totalQuantity}ш`}
+          sub={`${data.totalProducts} төрлийн бараа`}
           color="bg-blue-500"
+          href="/products"
           breakdown={isAdmin ? data.userStats.map(u => ({ name: u.name, count: u.total })) : undefined} />
         <StatCard icon={Clock} label="Хүлээгдэж байна"
-          value={data.pendingCount}
-          sub={`${data.pendingQuantity}ш`}
+          value={`${data.pendingQuantity}ш`}
+          sub={`${data.pendingCount} төрлийн бараа`}
           color="bg-orange-400"
+          href="/products?status=PENDING"
           breakdown={isAdmin ? data.userStats.filter(u => u.pending > 0).map(u => ({ name: u.name, count: u.pending })) : undefined} />
         <StatCard icon={CheckCircle} label="Зөвшөөрөгдсөн"
-          value={data.approvedCount}
-          sub={`${data.approvedQuantity}ш`}
+          value={`${data.approvedQuantity}ш`}
+          sub={`${data.approvedCount} төрлийн бараа`}
           color="bg-teal-500"
+          href="/products?status=APPROVED"
           breakdown={isAdmin ? data.userStats.filter(u => u.approved > 0).map(u => ({ name: u.name, count: u.approved })) : undefined} />
-        <StatCard icon={Ship} label="Ачааны тоо" value={data.shipmentsCount} sub="Нийт илгээлт" color="bg-indigo-500" />
+        <StatCard icon={Ship} label="Ачааны тоо" value={data.shipmentsCount} sub="Нийт илгээлт" color="bg-indigo-500" href="/shipments" />
       </div>
 
       {isAdmin ? (
         <div className="grid grid-cols-2 gap-4">
           <StatCard icon={DollarSign} label="Нийт өртөг"
             value={`A$${data.totalValue.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-            sub="Бүх барааны нийлбэр үнэ" color="bg-violet-500" />
+            sub="Бүх барааны нийлбэр үнэ" color="bg-violet-500" href="/products" />
           <StatCard icon={TrendingUp} label="Нийт хүлээгдэх ашиг"
             value={`₮${data.totalProfit.toLocaleString("mn-MN")}`}
-            sub="Зарах үнэ − авсан үнэ" color={data.totalProfit >= 0 ? "bg-green-500" : "bg-red-500"} />
+            sub="Зарах үнэ − авсан үнэ" color={data.totalProfit >= 0 ? "bg-green-500" : "bg-red-500"} href="/products" />
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-4">
           <StatCard icon={ShoppingCart} label="Нийт борлуулалт"
             value={`${data.totalSalesCount}ш`}
             sub={`Нийт орлого ₮${data.totalRevenue.toLocaleString("mn-MN")}`}
-            color="bg-green-500" />
+            color="bg-green-500" href="/sales" />
           <StatCard icon={Banknote} label="Зээлийн борлуулалт"
             value={`${data.creditCount}ш`}
             sub={data.creditCount > 0 ? `₮${data.creditAmount.toLocaleString("mn-MN")} төлөгдөөгүй` : "Зээл байхгүй"}
-            color={data.creditCount > 0 ? "bg-orange-400" : "bg-green-500"} />
+            color={data.creditCount > 0 ? "bg-orange-400" : "bg-green-500"} href="/sales" />
         </div>
       )}
 
       {/* Admin: sales summary */}
       {isAdmin && data.totalSalesCount > 0 && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard icon={ShoppingCart} label="Нийт борлуулалт" value={`${data.totalSalesCount}ш`} sub={`${data.creditCount} зээлтэй`} color="bg-green-500" />
-          <StatCard icon={Banknote} label="Нийт орлого" value={`₮${data.totalRevenue.toLocaleString("mn-MN")}`} sub="Борлуулалтын нийт дүн" color="bg-emerald-500" />
-          <StatCard icon={TrendingUp} label="Нийт бонус" value={`₮${data.totalBonus.toLocaleString("mn-MN")}`} sub="Зуучлагчдад өгсөн" color="bg-amber-400" />
-          <StatCard icon={ShoppingCart} label="Зээлийн борлуулалт" value={data.creditCount} sub={`₮${data.creditAmount.toLocaleString("mn-MN")} төлөгдөөгүй`} color="bg-orange-400" />
+          <StatCard icon={ShoppingCart} label="Нийт борлуулалт" value={`${data.totalSalesCount}ш`} sub={`${data.creditCount} зээлтэй`} color="bg-green-500" href="/sales" />
+          <StatCard icon={Banknote} label="Нийт орлого" value={`₮${data.totalRevenue.toLocaleString("mn-MN")}`} sub="Борлуулалтын нийт дүн" color="bg-emerald-500" href="/sales" />
+          <StatCard icon={TrendingUp} label="Нийт бонус" value={`₮${data.totalBonus.toLocaleString("mn-MN")}`} sub="Зуучлагчдад өгсөн" color="bg-amber-400" href="/sales" />
+          <StatCard icon={ShoppingCart} label="Зээлийн борлуулалт" value={data.creditCount} sub={`₮${data.creditAmount.toLocaleString("mn-MN")} төлөгдөөгүй`} color="bg-orange-400" href="/payments" />
         </div>
       )}
 
