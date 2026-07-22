@@ -41,6 +41,7 @@ interface Product {
   barcode: string | null; imageUrl: string | null;
   sellingPrice: number; shipment: { id: string; name: string } | null;
   assignedTo: { id: string; name: string } | null;
+  _ids?: string[];
 }
 
 /* ─── StatCard ───────────────────────────────────────────── */
@@ -151,10 +152,28 @@ export default function DashboardPage() {
     return matchTab && matchShip && matchBrand && matchSearch;
   });
 
+  // Ижил бар кодтой барааг бүлэглэх (бар код хоосон бол бүлэглэхгүй)
+  const groupKey = (p: Product) => (p.barcode ? `bc:${p.barcode}` : `id:${p.id}`);
+  const grouped = Object.values(
+    filtered.reduce<Record<string, Product & { _ids: string[] }>>((acc, p) => {
+      const key = groupKey(p);
+      if (!acc[key]) {
+        acc[key] = { ...p, _ids: [p.id] };
+      } else {
+        acc[key].quantity += p.quantity;
+        acc[key]._ids.push(p.id);
+      }
+      return acc;
+    }, {})
+  );
+  // 0 үлдэгдэлтэйг нуух
+  const groupedInStock = grouped.filter((g) => g.quantity > 0);
+
+  const inStockAll = products.filter(p => p.quantity > 0);
   const tabCounts = {
-    ALL: products.length,
-    PENDING: products.filter(p => p.status === "PENDING").length,
-    APPROVED: products.filter(p => p.status === "APPROVED").length,
+    ALL: new Set(inStockAll.map(groupKey)).size,
+    PENDING: new Set(inStockAll.filter(p => p.status === "PENDING").map(groupKey)).size,
+    APPROVED: new Set(inStockAll.filter(p => p.status === "APPROVED").map(groupKey)).size,
   };
 
   return (
@@ -359,7 +378,7 @@ export default function DashboardPage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-800">Миний бараанууд</h2>
-            <span className="text-sm text-gray-400">{filtered.length} бараа</span>
+            <span className="text-sm text-gray-400">{groupedInStock.length} бараа</span>
           </div>
 
           {/* Filters */}
@@ -449,10 +468,10 @@ export default function DashboardPage() {
                 <tbody className="divide-y divide-gray-100">
                   {productsLoading ? (
                     <tr><td colSpan={10} className="text-center py-10 text-gray-400">Уншиж байна...</td></tr>
-                  ) : filtered.length === 0 ? (
+                  ) : groupedInStock.length === 0 ? (
                     <tr><td colSpan={10} className="text-center py-10 text-gray-400">Бараа байхгүй</td></tr>
                   ) : (
-                    filtered.map((p, idx) => (
+                    groupedInStock.map((p, idx) => (
                       <tr key={p.id} className="hover:bg-gray-50/70 transition-colors">
                         <td className="px-4 py-3 font-mono text-sm text-gray-400 whitespace-nowrap">{idx + 1}</td>
                         <td className="px-4 py-3">

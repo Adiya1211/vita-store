@@ -17,6 +17,7 @@ interface Product {
   dosage: string | null;
   quantity: number;
   sellingPrice: number;
+  _ids?: string[];
 }
 
 interface Props {
@@ -66,6 +67,7 @@ export default function SaleModal({ product, onClose, onDone }: Props) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         productId: product!.id,
+        productIds: product!._ids && product!._ids.length ? product!._ids : [product!.id],
         quantity: Number(quantity),
         sellingPrice: product!.sellingPrice,
         actualPrice: Number(actualPrice),

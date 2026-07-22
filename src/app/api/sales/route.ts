@@ -43,30 +43,53 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const { productId, quantity, sellingPrice, actualPrice, bonus, paymentType, note, customerName, soldAt } = body;
+  const { productId, productIds, quantity, sellingPrice, actualPrice, bonus, paymentType, note, customerName, soldAt } = body;
 
   if (!productId || !quantity || !sellingPrice) {
     return NextResponse.json({ error: "Мэдээлэл дутуу байна" }, { status: 400 });
   }
 
-  const product = await prisma.product.findUnique({ where: { id: productId } });
-  if (!product) return NextResponse.json({ error: "Бараа олдсонгүй" }, { status: 404 });
+  // Бүлэглэсэн бараа — ижил бар кодтой олон бичлэгээс зарж болно
+  const ids: string[] = Array.isArray(productIds) && productIds.length ? productIds : [productId];
+  const groupProducts = await prisma.product.findMany({ where: { id: { in: ids } } });
+  if (!groupProducts.length) return NextResponse.json({ error: "Бараа олдсонгүй" }, { status: 404 });
 
-  if (quantity > product.quantity) {
-    return NextResponse.json({ error: `Зарах тоо барааны тооноос (${product.quantity}) их байна` }, { status: 400 });
+  // Sale-д холбогдох төлөөлөл бичлэг (илгээгдсэн productId эсвэл эхнийх)
+  const product = groupProducts.find((p) => p.id === productId) ?? groupProducts[0];
+
+  const totalAvailable = groupProducts.reduce((sum, p) => sum + p.quantity, 0);
+  const qty = Number(quantity);
+  if (qty > totalAvailable) {
+    return NextResponse.json({ error: `Зарах тоо барааны тооноос (${totalAvailable}) их байна` }, { status: 400 });
   }
 
   const resolvedActualPrice = actualPrice ? Number(actualPrice) : Number(sellingPrice);
-  const totalAmount = resolvedActualPrice * Number(quantity);
+  const totalAmount = resolvedActualPrice * qty;
 
-  // Борлуулалт бүртгэж, барааны тоог хасах
+  // Борлуулалт бүртгэж, барааны тоог бичлэгүүд дундуур хасах (бага үлдэгдэлтэйг эхэлж)
+  const sorted = [...groupProducts].sort((a, b) => a.quantity - b.quantity);
+  const ops: ReturnType<typeof prisma.product.update>[] = [];
+  let remaining = qty;
+  for (const p of sorted) {
+    if (remaining <= 0) break;
+    const take = Math.min(remaining, p.quantity);
+    const newQty = p.quantity - take;
+    ops.push(
+      prisma.product.update({
+        where: { id: p.id },
+        data: { quantity: newQty, totalPrice: p.costPrice * newQty },
+      })
+    );
+    remaining -= take;
+  }
+
   const [sale] = await prisma.$transaction([
     prisma.sale.create({
       data: {
         id: crypto.randomUUID(),
-        productId,
+        productId: product.id,
         soldById: session.user.id,
-        quantity: Number(quantity),
+        quantity: qty,
         sellingPrice: Number(sellingPrice),
         actualPrice: resolvedActualPrice,
         totalAmount,
@@ -77,13 +100,7 @@ export async function POST(req: NextRequest) {
         soldAt: soldAt ? new Date(soldAt) : new Date(),
       },
     }),
-    prisma.product.update({
-      where: { id: productId },
-      data: {
-        quantity: product.quantity - Number(quantity),
-        totalPrice: product.costPrice * (product.quantity - Number(quantity)),
-      },
-    }),
+    ...ops,
   ]);
 
   await logActivity({
@@ -96,7 +113,7 @@ export async function POST(req: NextRequest) {
   });
 
   // Бага үлдэгдэл мэдэгдэл — админд илгээх
-  const remainingQty = product.quantity - Number(quantity);
+  const remainingQty = totalAvailable - qty;
   const LOW_STOCK = 5;
 
   if (remainingQty <= LOW_STOCK) {
