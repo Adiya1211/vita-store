@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 import {
   Package, Clock, CheckCircle, DollarSign, TrendingUp, Ship, Users, UserX,
@@ -39,10 +39,34 @@ interface Product {
   id: string; sequenceNumber: number; status: "PENDING" | "APPROVED";
   brand: string; name: string; dosage: string | null; quantity: number;
   barcode: string | null; imageUrl: string | null; registeredAt?: string;
+  store?: string | null; costPrice?: number; discountedPrice?: number | null; totalPrice?: number;
   sellingPrice: number; shipment: { id: string; name: string } | null;
   assignedTo: { id: string; name: string } | null;
   _ids?: string[];
 }
+interface FieldConfig {
+  fieldKey: string; label: string; isVisible: boolean; visibleToStaff: boolean; sortOrder: number;
+}
+
+// Багануудын тодорхойлолт — админы талбарын тохиргоонд захирагдана
+const STAFF_COLUMNS: { key: string; label: string; sortable: boolean }[] = [
+  { key: "sequenceNumber", label: "#", sortable: true },
+  { key: "imageUrl", label: "Зураг", sortable: false },
+  { key: "registeredAt", label: "Огноо", sortable: true },
+  { key: "store", label: "Дэлгүүр", sortable: true },
+  { key: "brand", label: "Брэнд", sortable: true },
+  { key: "name", label: "Нэр", sortable: true },
+  { key: "dosage", label: "Тун", sortable: true },
+  { key: "quantity", label: "Тоо", sortable: true },
+  { key: "costPrice", label: "Үндсэн үнэ", sortable: true },
+  { key: "discountedPrice", label: "Хямд. үнэ", sortable: true },
+  { key: "totalPrice", label: "Нийт үнэ", sortable: true },
+  { key: "sellingPrice", label: "Зарах үнэ", sortable: true },
+  { key: "barcode", label: "Бар код", sortable: true },
+  { key: "shipment", label: "Ачаа", sortable: true },
+  { key: "status", label: "Статус", sortable: true },
+];
+const ALWAYS_VISIBLE_FOR_STAFF = ["imageUrl", "sequenceNumber"];
 
 /* ─── StatCard ───────────────────────────────────────────── */
 function StatCard({ icon: Icon, label, value, sub, color, breakdown }: {
@@ -84,6 +108,7 @@ export default function DashboardPage() {
 
   /* staff product list */
   const [products, setProducts] = useState<Product[]>([]);
+  const [fieldConfigs, setFieldConfigs] = useState<FieldConfig[]>([]);
   const [shipments, setShipments] = useState<{ id: string; name: string }[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -109,14 +134,16 @@ export default function DashboardPage() {
 
   async function loadProducts() {
     if (isAdmin) { setProductsLoading(false); return; }
-    const [prods, ships, userList] = await Promise.all([
+    const [prods, ships, userList, fields] = await Promise.all([
       fetch("/api/products").then(r => r.json()),
       fetch("/api/shipments").then(r => r.json()),
       fetch("/api/users").then(r => r.json()),
+      fetch("/api/fields").then(r => r.json()),
     ]);
     setProducts(Array.isArray(prods) ? prods : []);
     setShipments(Array.isArray(ships) ? ships : []);
     setUsers(Array.isArray(userList) ? userList : []);
+    setFieldConfigs(Array.isArray(fields) ? fields : []);
     setProductsLoading(false);
   }
 
@@ -180,18 +207,58 @@ export default function DashboardPage() {
   // 0 үлдэгдэлтэйг нуух
   const groupedInStock = grouped.filter((g) => g.quantity > 0);
 
+  // Админы тохиргоогоор харагдах багана (visibleToStaff)
+  const visibleColumns = STAFF_COLUMNS.filter((col) => {
+    if (ALWAYS_VISIBLE_FOR_STAFF.includes(col.key)) return true;
+    const config = fieldConfigs.find((f) => f.fieldKey === col.key);
+    if (!config) return true;
+    if (!config.isVisible) return false;
+    if (!config.visibleToStaff) return false;
+    return true;
+  });
+
   // Багана бүрээр эрэмбэлэх
   const sortValue = (p: Product, key: string): string | number => {
     switch (key) {
-      case "registeredAt": return p.registeredAt ? new Date(p.registeredAt).getTime() : 0;
-      case "brand":        return p.brand.toLowerCase();
-      case "name":         return p.name.toLowerCase();
-      case "barcode":      return p.barcode ?? "";
-      case "quantity":     return p.quantity;
-      case "sellingPrice": return p.sellingPrice;
-      case "shipment":     return (p.shipment?.name ?? "").toLowerCase();
-      case "status":       return p.status;
-      default:             return "";
+      case "sequenceNumber": return p.sequenceNumber ?? 0;
+      case "registeredAt":   return p.registeredAt ? new Date(p.registeredAt).getTime() : 0;
+      case "store":          return (p.store ?? "").toLowerCase();
+      case "brand":          return p.brand.toLowerCase();
+      case "name":           return p.name.toLowerCase();
+      case "dosage":         return (p.dosage ?? "").toLowerCase();
+      case "quantity":       return p.quantity;
+      case "costPrice":      return p.costPrice ?? 0;
+      case "discountedPrice":return p.discountedPrice ?? 0;
+      case "totalPrice":     return p.totalPrice ?? 0;
+      case "sellingPrice":   return p.sellingPrice;
+      case "barcode":        return p.barcode ?? "";
+      case "shipment":       return (p.shipment?.name ?? "").toLowerCase();
+      case "status":         return p.status;
+      default:               return "";
+    }
+  };
+
+  // Нүдний агуулга render (# ба зургийг table дотор тусад нь)
+  const renderCell = (p: Product, key: string): ReactNode => {
+    switch (key) {
+      case "registeredAt":   return p.registeredAt ? new Date(p.registeredAt).toLocaleDateString("mn-MN") : "—";
+      case "store":          return p.store ?? "—";
+      case "brand":          return <span className="font-medium text-gray-900">{p.brand}</span>;
+      case "name":           return p.name;
+      case "dosage":         return <span className="text-gray-500">{p.dosage ?? "—"}</span>;
+      case "quantity":       return <span className="font-mono text-gray-700">{p.quantity}</span>;
+      case "costPrice":      return p.costPrice != null ? `A$${p.costPrice.toFixed(2)}` : "—";
+      case "discountedPrice":return p.discountedPrice != null ? `A$${p.discountedPrice.toFixed(2)}` : "—";
+      case "totalPrice":     return p.totalPrice != null ? `A$${p.totalPrice.toFixed(2)}` : "—";
+      case "sellingPrice":   return <span className="font-mono text-gray-700">₮{p.sellingPrice.toLocaleString("mn-MN")}</span>;
+      case "barcode":        return p.barcode ? <span className="font-mono text-xs text-gray-400">{p.barcode}</span> : <span className="text-gray-200">—</span>;
+      case "shipment":       return p.shipment
+        ? <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 font-medium">{p.shipment.name}</span>
+        : <span className="text-gray-300 text-xs">—</span>;
+      case "status":         return p.status === "APPROVED"
+        ? <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">Зөвшөөрсөн</span>
+        : <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">Хүлээгдэж байна</span>;
+      default:               return null;
     }
   };
   const sortedProducts = sortKey
@@ -517,60 +584,42 @@ export default function DashboardPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50/50 border-b">
-                    {([
-                      ["#", null], ["Зураг", null], ["Брэнд", "brand"], ["Нэр", "name"],
-                      ["Бар код", "barcode"], ["Тоо", "quantity"], ["Зарах үнэ", "sellingPrice"],
-                      ["Ачаа", "shipment"], ["Статус", "status"], ["", null],
-                    ] as const).map(([label, key], i) => (
-                      <th key={label || `col-${i}`} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
-                        {key ? (
+                    {visibleColumns.map((col) => (
+                      <th key={col.key} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
+                        {col.sortable ? (
                           <button
                             type="button"
-                            onClick={() => toggleSort(key)}
-                            className={`flex items-center gap-1 hover:text-gray-700 transition-colors ${sortKey === key ? "text-gray-900" : ""}`}
+                            onClick={() => toggleSort(col.key)}
+                            className={`flex items-center gap-1 hover:text-gray-700 transition-colors ${sortKey === col.key ? "text-gray-900" : ""}`}
                           >
-                            {label}
-                            {sortKey === key
+                            {col.label}
+                            {sortKey === col.key
                               ? (sortDir === "asc" ? <ChevronUp size={13} /> : <ChevronDown size={13} />)
                               : <ChevronsUpDown size={13} className="text-gray-300" />}
                           </button>
-                        ) : label}
+                        ) : col.label}
                       </th>
                     ))}
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {productsLoading ? (
-                    <tr><td colSpan={10} className="text-center py-10 text-gray-400">Уншиж байна...</td></tr>
+                    <tr><td colSpan={visibleColumns.length + 1} className="text-center py-10 text-gray-400">Уншиж байна...</td></tr>
                   ) : sortedProducts.length === 0 ? (
-                    <tr><td colSpan={10} className="text-center py-10 text-gray-400">Бараа байхгүй</td></tr>
+                    <tr><td colSpan={visibleColumns.length + 1} className="text-center py-10 text-gray-400">Бараа байхгүй</td></tr>
                   ) : (
                     pagedProducts.map((p, idx) => (
                       <tr key={p.id} className="hover:bg-gray-50/70 transition-colors">
-                        <td className="px-4 py-3 font-mono text-sm text-gray-400 whitespace-nowrap">{(currentPage - 1) * PAGE_SIZE + idx + 1}</td>
-                        <td className="px-4 py-3">
-                          <ImageGallery imageUrl={p.imageUrl} productName={p.name} />
-                        </td>
-                        <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{p.brand}</td>
-                        <td className="px-4 py-3 text-gray-600">
-                          {p.name}
-                          {p.dosage && <span className="text-gray-400 text-xs ml-1">{p.dosage}</span>}
-                        </td>
-                        <td className="px-4 py-3 font-mono text-xs text-gray-400 whitespace-nowrap">
-                          {p.barcode ?? <span className="text-gray-200">—</span>}
-                        </td>
-                        <td className="px-4 py-3 text-gray-700 font-mono">{p.quantity}</td>
-                        <td className="px-4 py-3 text-gray-700 font-mono">₮{p.sellingPrice.toLocaleString("mn-MN")}</td>
-                        <td className="px-4 py-3">
-                          {p.shipment
-                            ? <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 font-medium">{p.shipment.name}</span>
-                            : <span className="text-gray-300 text-xs">—</span>}
-                        </td>
-                        <td className="px-4 py-3">
-                          {p.status === "APPROVED"
-                            ? <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">Зөвшөөрсөн</span>
-                            : <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">Хүлээгдэж байна</span>}
-                        </td>
+                        {visibleColumns.map((col) => (
+                          <td key={col.key} className="px-4 py-3 text-sm whitespace-nowrap">
+                            {col.key === "sequenceNumber"
+                              ? <span className="font-mono text-gray-400">{(currentPage - 1) * PAGE_SIZE + idx + 1}</span>
+                              : col.key === "imageUrl"
+                              ? <ImageGallery imageUrl={p.imageUrl} productName={p.name} />
+                              : renderCell(p, col.key)}
+                          </td>
+                        ))}
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1.5">
                             {p.status === "APPROVED" && (
