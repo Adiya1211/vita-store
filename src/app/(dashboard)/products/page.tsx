@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Plus, Search, Pencil, Trash2, ArrowLeftRight, CheckCircle, Ship, Copy, ShoppingCart, RefreshCw, FileText, Download, X } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, ArrowLeftRight, CheckCircle, Ship, Copy, ShoppingCart, RefreshCw, FileText, Download, X, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import BarcodeScanButton from "@/components/BarcodeScanButton";
 import ExchangeRateBadge from "@/components/ExchangeRateBadge";
 import BrochureCard from "@/components/BrochureCard";
@@ -118,6 +118,10 @@ export default function ProductsPage() {
   const [selectedUserId, setSelectedUserId] = useState<string>("ALL");
   const [shipments, setShipments] = useState<{ id: string; name: string }[]>([]);
   const [selectedShipmentId, setSelectedShipmentId] = useState<string>("ALL");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [brochureProduct, setBrochureProduct] = useState<Product | null>(null);
   const [recalculating, setRecalculating] = useState(false);
   const [exchangeRate, setExchangeRate] = useState<number>(0);
@@ -135,7 +139,16 @@ export default function ProductsPage() {
   }, []);
 
   // Filter өөрчлөгдөхөд эхний хуудас руу буцах
-  useEffect(() => { setCurrentPage(1); }, [search, selectedBrand, activeTab, selectedUserId, selectedShipmentId]);
+  useEffect(() => { setCurrentPage(1); }, [search, selectedBrand, activeTab, selectedUserId, selectedShipmentId, dateFrom, dateTo, sortKey, sortDir]);
+
+  function toggleSort(key: string) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
 
   async function handleRecalculate() {
     if (!confirm(`Бүх барааны зарах үнийг шинэ ханшаар (1 A$ = ₮${exchangeRate.toLocaleString("mn-MN")}) дахин тооцоолох уу?`)) return;
@@ -245,12 +258,14 @@ export default function ProductsPage() {
       selectedShipmentId === "NONE" ? p.shipment === null :
       p.shipment?.id === selectedShipmentId;
     const matchBrand = selectedBrand === "ALL" || p.brand === selectedBrand;
+    const regDate = p.registeredAt ? p.registeredAt.split("T")[0] : "";
+    const matchDate = (dateFrom === "" || regDate >= dateFrom) && (dateTo === "" || regDate <= dateTo);
     const matchSearch = search === "" ||
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.brand.toLowerCase().includes(search.toLowerCase()) ||
       (p.store ?? "").toLowerCase().includes(search.toLowerCase()) ||
       (p.barcode ?? "").includes(search);
-    return matchTab && matchUser && matchShipment && matchBrand && matchSearch;
+    return matchTab && matchUser && matchShipment && matchBrand && matchDate && matchSearch;
   });
 
   // Бар кодоор бүлэглэх (бар код байхгүй бол brand+name+dosage)
@@ -277,8 +292,48 @@ export default function ProductsPage() {
     APPROVED: new Set(products.filter((p) => p.status === "APPROVED").map(groupKey)).size,
   };
 
-  const totalPages = Math.ceil(grouped.length / PAGE_SIZE);
-  const paged = grouped.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  // 0 үлдэгдэлтэй барааг нуух
+  const inStock = grouped.filter((g) => g.quantity > 0);
+
+  // Багана бүрээр эрэмбэлэх утга гаргах
+  const sortValue = (p: Product, key: string): string | number => {
+    switch (key) {
+      case "sequenceNumber": return p.sequenceNumber ?? 0;
+      case "registeredAt":   return new Date(p.registeredAt).getTime();
+      case "store":          return (p.store ?? "").toLowerCase();
+      case "brand":          return p.brand.toLowerCase();
+      case "name":           return p.name.toLowerCase();
+      case "dosage":         return (p.dosage ?? "").toLowerCase();
+      case "quantity":       return p.quantity;
+      case "costPrice":      return p.costPrice;
+      case "discountedPrice":return p.discountedPrice ?? 0;
+      case "totalPrice":     return p.totalPrice;
+      case "sellingPrice":   return p.sellingPrice;
+      case "profit": {
+        const costAUD = p.discountedPrice ?? p.costPrice;
+        return exchangeRate > 0 ? (p.sellingPrice - costAUD * exchangeRate) * p.quantity : 0;
+      }
+      case "assignedUserId": return (p.assignedTo?.name ?? "").toLowerCase();
+      case "barcode":        return p.barcode ?? "";
+      case "shipment":       return (p.shipment?.name ?? "").toLowerCase();
+      case "status":         return p.status ?? "PENDING";
+      default:               return "";
+    }
+  };
+
+  const sorted = sortKey
+    ? [...inStock].sort((a, b) => {
+        const va = sortValue(a, sortKey);
+        const vb = sortValue(b, sortKey);
+        let cmp = 0;
+        if (typeof va === "number" && typeof vb === "number") cmp = va - vb;
+        else cmp = String(va).localeCompare(String(vb), "mn");
+        return sortDir === "asc" ? cmp : -cmp;
+      })
+    : inStock;
+
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+  const paged = sorted.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   return (
     <div className="space-y-5">
@@ -286,7 +341,7 @@ export default function ProductsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Бүтээгдэхүүн</h1>
-          <p className="text-sm text-gray-400 mt-0.5">{grouped.length} бүтээгдэхүүн</p>
+          <p className="text-sm text-gray-400 mt-0.5">{sorted.length} бүтээгдэхүүн</p>
         </div>
         <div className="flex items-center gap-2">
           {isAdmin && (
@@ -416,6 +471,34 @@ export default function ProductsPage() {
             <option key={s.id} value={s.id}>{s.name}</option>
           ))}
         </select>
+
+        {/* Огноогоор шүүх */}
+        <div className="flex items-center gap-1.5 text-sm text-gray-600">
+          <span className="text-gray-400">Огноо:</span>
+          <Input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="h-9 w-36 bg-white text-sm"
+          />
+          <span className="text-gray-400">–</span>
+          <Input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="h-9 w-36 bg-white text-sm"
+          />
+          {(dateFrom || dateTo) && (
+            <button
+              type="button"
+              onClick={() => { setDateFrom(""); setDateTo(""); }}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+              title="Огноо цэвэрлэх"
+            >
+              <X size={15} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Table */}
@@ -423,11 +506,26 @@ export default function ProductsPage() {
         <Table>
           <TableHeader>
             <TableRow className="border-b bg-gray-50/50">
-              {visibleColumns.map((col) => (
-                <TableHead key={col.fieldKey} className="whitespace-nowrap text-xs font-semibold text-gray-500 uppercase tracking-wide py-3">
-                  {col.label}
-                </TableHead>
-              ))}
+              {visibleColumns.map((col) => {
+                const sortable = col.fieldKey !== "imageUrl";
+                const active = sortKey === col.fieldKey;
+                return (
+                  <TableHead key={col.fieldKey} className="whitespace-nowrap text-xs font-semibold text-gray-500 uppercase tracking-wide py-3">
+                    {sortable ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleSort(col.fieldKey)}
+                        className={`flex items-center gap-1 hover:text-gray-700 transition-colors ${active ? "text-gray-900" : ""}`}
+                      >
+                        {col.label}
+                        {active
+                          ? (sortDir === "asc" ? <ChevronUp size={13} /> : <ChevronDown size={13} />)
+                          : <ChevronsUpDown size={13} className="text-gray-300" />}
+                      </button>
+                    ) : col.label}
+                  </TableHead>
+                );
+              })}
               <TableHead className="w-24" />
             </TableRow>
           </TableHeader>
@@ -438,7 +536,7 @@ export default function ProductsPage() {
                   Уншиж байна...
                 </TableCell>
               </TableRow>
-            ) : grouped.length === 0 ? (
+            ) : sorted.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={visibleColumns.length + 1} className="text-center py-10 text-gray-400">
                   Бүтээгдэхүүн олдсонгүй
@@ -551,7 +649,7 @@ export default function ProductsPage() {
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between text-sm text-gray-500">
-          <span>{grouped.length} бүтээгдэхүүнээс {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, grouped.length)}-г харуулж байна</span>
+          <span>{sorted.length} бүтээгдэхүүнээс {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, sorted.length)}-г харуулж байна</span>
           <div className="flex items-center gap-1">
             <button
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
