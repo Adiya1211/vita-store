@@ -31,6 +31,7 @@ interface Product {
   brand: string;
   quantity: number;
   assignedTo: { id: string; name: string } | null;
+  _ids?: string[];
 }
 
 interface Props {
@@ -65,6 +66,7 @@ export default function TransferModal({ product, users, onClose, onDone }: Props
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         productId: product.id,
+        productIds: product._ids && product._ids.length ? product._ids : [product.id],
         toUserId,
         quantity,
         note,
