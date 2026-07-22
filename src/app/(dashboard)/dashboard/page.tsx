@@ -16,7 +16,7 @@ import ImageGallery from "@/components/ImageGallery";
 import SaleModal from "@/components/SaleModal";
 import TransferModal from "@/components/TransferModal";
 import BrochureCard from "@/components/BrochureCard";
-import { ArrowLeftRight, FileText, X } from "lucide-react";
+import { ArrowLeftRight, FileText, X, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import BarcodeScanButton from "@/components/BarcodeScanButton";
 
 /* ─── Types ─────────────────────────────────────────────── */
@@ -38,7 +38,7 @@ interface DashboardData {
 interface Product {
   id: string; sequenceNumber: number; status: "PENDING" | "APPROVED";
   brand: string; name: string; dosage: string | null; quantity: number;
-  barcode: string | null; imageUrl: string | null;
+  barcode: string | null; imageUrl: string | null; registeredAt?: string;
   sellingPrice: number; shipment: { id: string; name: string } | null;
   assignedTo: { id: string; name: string } | null;
   _ids?: string[];
@@ -94,6 +94,12 @@ export default function DashboardPage() {
   const [brochureProduct, setBrochureProduct] = useState<Product | null>(null);
   const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
   const [selectedBrand, setSelectedBrand] = useState("ALL");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 50;
 
   useEffect(() => {
     fetch("/api/dashboard")
@@ -118,6 +124,9 @@ export default function DashboardPage() {
     if (session) loadProducts();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
+
+  // Filter/эрэмбэ өөрчлөгдөхөд эхний хуудас руу
+  useEffect(() => { setCurrentPage(1); }, [search, selectedBrand, activeTab, selectedShipmentId, dateFrom, dateTo, sortKey, sortDir]);
 
   async function handleApprove(ids: string[]) {
     const res = await fetch("/api/products/approve", {
@@ -145,11 +154,13 @@ export default function DashboardPage() {
       : selectedShipmentId === "NONE" ? !p.shipment
       : p.shipment?.id === selectedShipmentId;
     const matchBrand = selectedBrand === "ALL" || p.brand === selectedBrand;
+    const regDate = p.registeredAt ? p.registeredAt.split("T")[0] : "";
+    const matchDate = (dateFrom === "" || regDate >= dateFrom) && (dateTo === "" || regDate <= dateTo);
     const matchSearch = search === "" ||
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.brand.toLowerCase().includes(search.toLowerCase()) ||
       (p.barcode ?? "").includes(search);
-    return matchTab && matchShip && matchBrand && matchSearch;
+    return matchTab && matchShip && matchBrand && matchDate && matchSearch;
   });
 
   // Ижил бар кодтой барааг бүлэглэх (бар код хоосон бол бүлэглэхгүй, төлөв өөр бол тусад нь)
@@ -168,6 +179,39 @@ export default function DashboardPage() {
   );
   // 0 үлдэгдэлтэйг нуух
   const groupedInStock = grouped.filter((g) => g.quantity > 0);
+
+  // Багана бүрээр эрэмбэлэх
+  const sortValue = (p: Product, key: string): string | number => {
+    switch (key) {
+      case "registeredAt": return p.registeredAt ? new Date(p.registeredAt).getTime() : 0;
+      case "brand":        return p.brand.toLowerCase();
+      case "name":         return p.name.toLowerCase();
+      case "barcode":      return p.barcode ?? "";
+      case "quantity":     return p.quantity;
+      case "sellingPrice": return p.sellingPrice;
+      case "shipment":     return (p.shipment?.name ?? "").toLowerCase();
+      case "status":       return p.status;
+      default:             return "";
+    }
+  };
+  const sortedProducts = sortKey
+    ? [...groupedInStock].sort((a, b) => {
+        const va = sortValue(a, sortKey);
+        const vb = sortValue(b, sortKey);
+        const cmp = typeof va === "number" && typeof vb === "number"
+          ? va - vb
+          : String(va).localeCompare(String(vb), "mn");
+        return sortDir === "asc" ? cmp : -cmp;
+      })
+    : groupedInStock;
+
+  const totalPages = Math.ceil(sortedProducts.length / PAGE_SIZE);
+  const pagedProducts = sortedProducts.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  function toggleSort(key: string) {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("asc"); }
+  }
 
   const inStockAll = products.filter(p => p.quantity > 0);
   const tabCounts = {
@@ -452,6 +496,19 @@ export default function DashboardPage() {
                 ))}
               </select>
             )}
+
+            {/* Огноогоор шүүх */}
+            <div className="flex items-center gap-1.5 text-sm text-gray-600">
+              <span className="text-gray-400">Огноо:</span>
+              <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-9 w-36 bg-white text-sm" />
+              <span className="text-gray-400">–</span>
+              <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-9 w-36 bg-white text-sm" />
+              {(dateFrom || dateTo) && (
+                <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); }} className="text-gray-400 hover:text-gray-600 transition-colors" title="Огноо цэвэрлэх">
+                  <X size={15} />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Product table */}
@@ -460,20 +517,37 @@ export default function DashboardPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50/50 border-b">
-                    {["#", "Зураг", "Брэнд", "Нэр", "Бар код", "Тоо", "Зарах үнэ", "Ачаа", "Статус", ""].map((h) => (
-                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                    {([
+                      ["#", null], ["Зураг", null], ["Брэнд", "brand"], ["Нэр", "name"],
+                      ["Бар код", "barcode"], ["Тоо", "quantity"], ["Зарах үнэ", "sellingPrice"],
+                      ["Ачаа", "shipment"], ["Статус", "status"], ["", null],
+                    ] as const).map(([label, key], i) => (
+                      <th key={label || `col-${i}`} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">
+                        {key ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleSort(key)}
+                            className={`flex items-center gap-1 hover:text-gray-700 transition-colors ${sortKey === key ? "text-gray-900" : ""}`}
+                          >
+                            {label}
+                            {sortKey === key
+                              ? (sortDir === "asc" ? <ChevronUp size={13} /> : <ChevronDown size={13} />)
+                              : <ChevronsUpDown size={13} className="text-gray-300" />}
+                          </button>
+                        ) : label}
+                      </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {productsLoading ? (
                     <tr><td colSpan={10} className="text-center py-10 text-gray-400">Уншиж байна...</td></tr>
-                  ) : groupedInStock.length === 0 ? (
+                  ) : sortedProducts.length === 0 ? (
                     <tr><td colSpan={10} className="text-center py-10 text-gray-400">Бараа байхгүй</td></tr>
                   ) : (
-                    groupedInStock.map((p, idx) => (
+                    pagedProducts.map((p, idx) => (
                       <tr key={p.id} className="hover:bg-gray-50/70 transition-colors">
-                        <td className="px-4 py-3 font-mono text-sm text-gray-400 whitespace-nowrap">{idx + 1}</td>
+                        <td className="px-4 py-3 font-mono text-sm text-gray-400 whitespace-nowrap">{(currentPage - 1) * PAGE_SIZE + idx + 1}</td>
                         <td className="px-4 py-3">
                           <ImageGallery imageUrl={p.imageUrl} productName={p.name} />
                         </td>
@@ -540,6 +614,42 @@ export default function DashboardPage() {
               </table>
             </div>
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between text-sm text-gray-500">
+              <span>{sortedProducts.length} бараанаас {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, sortedProducts.length)}-г харуулж байна</span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 rounded-lg border text-xs font-medium disabled:opacity-40 hover:bg-gray-50 transition-colors"
+                >← Өмнөх</button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                  .reduce<(number | "...")[]>((acc, p, i, arr) => {
+                    if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("...");
+                    acc.push(p);
+                    return acc;
+                  }, [])
+                  .map((p, i) => p === "..." ? (
+                    <span key={`dots-${i}`} className="px-2 text-gray-300">…</span>
+                  ) : (
+                    <button
+                      key={p}
+                      onClick={() => setCurrentPage(p as number)}
+                      className={`w-8 h-8 rounded-lg text-xs font-medium transition-colors ${currentPage === p ? "bg-gray-900 text-white" : "border hover:bg-gray-50"}`}
+                    >{p}</button>
+                  ))
+                }
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 rounded-lg border text-xs font-medium disabled:opacity-40 hover:bg-gray-50 transition-colors"
+                >Дараах →</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
