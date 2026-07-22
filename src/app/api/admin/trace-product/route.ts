@@ -1,16 +1,17 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 // Түр зориулалтын endpoint — тодорхой бар кодтой барааны бүх бичлэг, лог, борлуулалтыг харах
-const BARCODE = "9300807320143";
-
-export async function POST() {
+export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session || session.user.role !== "ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+
+  const body = await req.json().catch(() => ({}));
+  const BARCODE: string = body.barcode || "9300807243763";
 
   // Тухайн бар кодтой бүх бараа бичлэг
   const products = await prisma.product.findMany({
