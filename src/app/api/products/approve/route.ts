@@ -8,37 +8,39 @@ export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id } = await req.json();
-  if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+  const { id, ids } = await req.json();
+  // Бүлэглэсэн бараа — олон id ирж болно
+  const targetIds: string[] = Array.isArray(ids) && ids.length ? ids : id ? [id] : [];
+  if (!targetIds.length) return NextResponse.json({ error: "Missing id" }, { status: 400 });
 
-  const product = await prisma.product.findUnique({ where: { id } });
-  if (!product) return NextResponse.json({ error: "Бүтээгдэхүүн олдсонгүй" }, { status: 404 });
+  const products = await prisma.product.findMany({ where: { id: { in: targetIds } } });
+  if (!products.length) return NextResponse.json({ error: "Бүтээгдэхүүн олдсонгүй" }, { status: 404 });
 
-  if (product.status !== "PENDING") {
-    return NextResponse.json({ error: "Зөвхөн PENDING статустай бүтээгдэхүүнийг зөвшөөрч болно" }, { status: 400 });
-  }
-
-  // Зөвхөн хуваарилагдсан борлуулагч эсвэл admin зөвшөөрч болно
   const isAdmin = session.user.role === "ADMIN";
-  const isAssigned = product.assignedUserId === session.user.id;
 
-  if (!isAdmin && !isAssigned) {
-    return NextResponse.json({ error: "Зөвшөөрөл хүрэлцэхгүй байна" }, { status: 403 });
+  // Зөвхөн PENDING, зөвшөөрөх эрхтэй (admin эсвэл хуваарилагдсан) бичлэгүүд
+  const approvable = products.filter(
+    (p) => p.status === "PENDING" && (isAdmin || p.assignedUserId === session.user.id)
+  );
+
+  if (!approvable.length) {
+    return NextResponse.json({ error: "Зөвшөөрөх боломжтой бараа алга" }, { status: 400 });
   }
 
-  const updated = await prisma.product.update({
-    where: { id },
+  await prisma.product.updateMany({
+    where: { id: { in: approvable.map((p) => p.id) } },
     data: { status: "APPROVED" },
   });
 
+  const first = approvable[0];
   await logActivity({
     action: "APPROVED",
-    description: `"${product.brand} ${product.name}" бараа зөвшөөрөгдлөө`,
+    description: `"${first.brand} ${first.name}" бараа зөвшөөрөгдлөө (${approvable.length}ш бичлэг)`,
     userId: session.user.id,
     userName: session.user.name ?? "Хэрэглэгч",
-    productId: id,
-    productName: `${product.brand} ${product.name}`,
+    productId: first.id,
+    productName: `${first.brand} ${first.name}`,
   });
 
-  return NextResponse.json(updated);
+  return NextResponse.json({ ok: true, approvedCount: approvable.length });
 }

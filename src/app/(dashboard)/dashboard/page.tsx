@@ -119,11 +119,11 @@ export default function DashboardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
-  async function handleApprove(id: string) {
+  async function handleApprove(ids: string[]) {
     const res = await fetch("/api/products/approve", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
+      body: JSON.stringify({ ids }),
     });
     if (res.ok) { toast.success("Зөвшөөрөгдлөө"); loadProducts(); }
     else toast.error("Алдаа гарлаа");
@@ -152,8 +152,8 @@ export default function DashboardPage() {
     return matchTab && matchShip && matchBrand && matchSearch;
   });
 
-  // Ижил бар кодтой барааг бүлэглэх (бар код хоосон бол бүлэглэхгүй)
-  const groupKey = (p: Product) => (p.barcode ? `bc:${p.barcode}` : `id:${p.id}`);
+  // Ижил бар кодтой барааг бүлэглэх (бар код хоосон бол бүлэглэхгүй, төлөв өөр бол тусад нь)
+  const groupKey = (p: Product) => (p.barcode ? `bc:${p.barcode}:${p.status}` : `id:${p.id}`);
   const grouped = Object.values(
     filtered.reduce<Record<string, Product & { _ids: string[] }>>((acc, p) => {
       const key = groupKey(p);
@@ -510,7 +510,7 @@ export default function DashboardPage() {
                             )}
                             {p.status === "PENDING" && p.assignedTo?.id === session?.user?.id && (
                               <button
-                                onClick={() => handleApprove(p.id)}
+                                onClick={() => handleApprove(p._ids ?? [p.id])}
                                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs font-semibold transition-colors"
                               >
                                 <CheckCircle2 size={12} />

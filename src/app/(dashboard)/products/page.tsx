@@ -191,11 +191,11 @@ export default function ProductsPage() {
     loadProducts();
   }
 
-  async function handleApprove(id: string) {
+  async function handleApprove(ids: string[]) {
     const res = await fetch("/api/products/approve", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
+      body: JSON.stringify({ ids }),
     });
     if (res.ok) toast.success("Зөвшөөрөгдлөө");
     else toast.error("Алдаа гарлаа");
@@ -268,9 +268,9 @@ export default function ProductsPage() {
     return matchTab && matchUser && matchShipment && matchBrand && matchDate && matchSearch;
   });
 
-  // Бар кодоор бүлэглэх (бар код байхгүй бол brand+name+dosage)
+  // Бар кодоор бүлэглэх (бар код байхгүй бол brand+name+dosage). Төлөв өөр бол тусад нь бүлэглэнэ.
   const groupKey = (p: Product) =>
-    p.barcode ? p.barcode : `${p.brand}||${p.name}||${p.dosage ?? ""}`;
+    (p.barcode ? p.barcode : `${p.brand}||${p.name}||${p.dosage ?? ""}`) + `||${p.status ?? "PENDING"}`;
 
   const grouped = Object.values(
     filtered.reduce<Record<string, Product & { _ids: string[] }>>((acc, p) => {
@@ -583,7 +583,7 @@ export default function ProductsPage() {
                         p.assignedTo?.id === session?.user?.id && (
                         <button
                           className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs font-semibold transition-colors"
-                          onClick={() => handleApprove(p.id)}
+                          onClick={() => handleApprove((p as Product & { _ids?: string[] })._ids ?? [p.id])}
                         >
                           <CheckCircle size={12} />
                           Approve
